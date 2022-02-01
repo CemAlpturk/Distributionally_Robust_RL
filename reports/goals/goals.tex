@@ -1,0 +1,80 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{biblatex}
+\addbibresource{refs.bib}
+\usepackage{authblk}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{bm}
+\usepackage{optidef}
+
+\title{Robot Path Planning via Deep Reinforcement Learning}
+\author[1]{Cem Alpturk}
+\author[2]{Venkatraman Renganathan}
+\author[3]{Anders Rantzer}
+\affil[1]{Student: \texttt{ce5368al-s@student.lu.se}}
+\affil[2]{Supervisor: \texttt{venkat@control.lth.se}}
+\affil[2]{Examiner: \texttt{anders.rantzer@control.lth.se}}
+
+\date{January 2022 - June 2022}
+
+\begin{document}
+
+\maketitle
+
+
+
+
+\section{Introduction}
+The purpose of this project is to compute a path in real time for a robot operating in a known environment with static and dynamic obstacles, given the initial and target positions. 
+The calculated path should minimize the risk of collision with any obstacles.
+The robot is modeled as a discrete-time LTI system with additive process noise belonging to a moment based ambiguity set and is controlled with a finite set of inputs.
+A wide variety of path planning algorithms exist that work on systems that are deterministic, however for this project, the additive process noise requires a different solution. 
+Optimal solutions such as \textit{RRT*} \cite{RRT} exist but can be too slow to execute in real time.
+
+\section{Problem Statement}
+Given an initial state $x_0 \in \mathcal{X} \in \mathbb{R}^n$ and a set of final goal locations $\mathcal{X}_{goal} \subset \mathcal{X}$, find a measurable control policy $\pi = [\pi_0,...,\pi_{T-1}]$ with $u_t = \pi_t(x_t)$ that maximizes the finite-horizon expected and discounted reward function subject to constraints:
+
+\begin{maxi}|l|
+    {\pi}{\mathbb{E}\left[ \sum \limits_{n=t}^{N-1} \gamma^{n-t} r(x_n,u_n,x_{n+1})\right]}{}{}
+    {\label{eq:Ex1}}{}
+    \addConstraint{x_{t+1} = Ax_t + Bu_t + w_t}{}{}
+    \addConstraint{x_o \sim \mathbb{P}_{x_0} \in \mathcal{P}^x:=\{\mathbb{P}_{x_0} | \mathbb{E}[x_0] = \Bar{x}_0, \mathbb{E}[(x_0-\Bar{x}_0)(x_0-\Bar{x}_0)^T] = \Sigma_{x_0}\}}{}{}
+    \addConstraint{w_t\sim \mathbb{P}_w \in \mathcal{P}^w := \{\mathbb{P}_w | \mathbb{E}[w_t] = 0, \mathbb{E}[w_tw_t^T] = \Sigma_w\}}{}{}
+    \addConstraint{u_t \in \mathcal{U}}{}{}
+    \addConstraint{\mathcal{X}_t^{free} = \mathcal{X} \setminus \bigcup_{i\in \mathcal{B}}\{x_t | A_ix_t \leq b_{it}\}}{}{}
+    \addConstraint{\sup_{\mathbb{P}_{x_t} \in \mathcal{P}^x} \mathbb{P}_{x_t} \left( x_t \notin \mathcal{X}^{free}_t \right) \leq \alpha_t, \quad \forall t \geq 0}{}{}
+	%\addConstraint{g(w_k)+h(w_k)}{=0,}{k=0,\ldots,N-1}
+	%\addConstraint{l(w_k)}{=5u,\quad}{k=0,\ldots,N-1}
+\end{maxi}
+where $\mathcal{P}^x$ is an ambiguity set of marginal state distributions and $\alpha_t \in (0,0.5]$ is a stage risk budget parameter such that $\sum_{t=0}^T \alpha_t \leq \alpha$ with $\alpha$ being the user-prescribed total risk budget. The task for the robot is to learn a control policy such that risk of obstacle collision is minimum.
+
+\section{Approach}
+A formulation as in \cite{pathplanning} will be adopted in order to control the robot and a solution based on Distributionally Robust Reinforcement Learning framework as in \cite{distributionally} will be developed in order to solve the path planning problem in real time. 
+Numerical experiments will be performed for the proposed method using Deep Reinforcement learning.
+This is supposed to return a sub-optimal solution at the expense of less computation time compared to optimal motion planning algorithms as in \cite{RRT}.
+The main goal will be to complete this task with static obstacles and if time permits, dynamic obstacles will also be taken in to consideration.
+
+\section{Contributions}
+The project could help automated processes in known enclosed spaces to perform efficient path planning and collision risk analysis in the presence of process noise that is not necessarily Gaussian.
+
+\section{Resources}
+The project will be implemented with Python and-or MATLAB. In the case that the training process is too demanding a remote machine, Google Colab or AWS could be used to speed up the project.
+
+%The calculated path should minimize the risk of collision with any obstacles.
+%The task for the robot is to learn a control policy such that the risk of collision is minimal by using distributionally robust reinforcement learning.
+
+
+
+%\section{Goals}
+%\begin{itemize}
+%    \item Literature Review about Distributionally Robust Reinforcement Learning
+%    \item Simulation of the environment and the MPC controller for the robot
+%    \item Training the robot to find the optimal policy which minimizes risk or collision
+%    \item Performing the task with and without additive process noise
+%    \item Performing the task with static and or dynamic obstacles
+%\end{itemize}
+
+\printbibliography
+
+\end{document}

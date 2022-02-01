@@ -1,0 +1,79 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{authblk}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+
+
+
+\title{Robot Path Planning via Distributionally Robust Deep Reinforcement Learning}
+\author[1]{Cem Alpturk}
+\author[2]{Venkatraman Renganathan}
+\author[3]{Anders Rantzer}
+\affil[1]{Student: \texttt{ce5368al-s@student.lu.se}}
+\affil[2]{Supervisor: \texttt{venkat@control.lth.se}}
+\affil[2]{Examiner: \texttt{anders.rantzer@control.lth.se}}
+
+\date{January 2022 - June 2022}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\section{Problem Definition}
+A robot that has discrete LTI dynamics can move on a 2D environment. The goal is to find a path from a starting position $p_0 \in \mathbb{R}^2 $ to a goal position $p_g \in \mathbb{R}^2$ while avoiding obstacles that are located in the environment by using a set of inputs $u \in \mathcal{U} \subseteq \mathbb{R}^2$. The robot dynamics are modeled by setting $x = \{p,\dot{p}\} \in \mathbb{R}^4$.
+
+\begin{equation}
+    \begin{split}
+        &x_{t+1} = Ax_t + Bu_t + w_t \\
+        &x_0 \sim \mathcal{N}(\Bar{x_0}, \Sigma_{x_0}) \\
+        &w_t \sim \mathbb{P}_w \in \mathcal{P}^w := \{\mathbb{P}_w | W_p(\hat{\mathbb{P}}_w,\mathbb{P}_w) < \epsilon \}
+    \end{split}
+\end{equation}
+
+The distribution of $w_t$ comes from an ambiguity set $\mathcal{P}^w$ which is the set of all distributions that have a Wasserstein distance to a nominal distribution $\hat{\mathbb{P}}_w$, less than $\epsilon$. This addition is the main idea of distributionally robust optimization. The nominal distribution $\mathbb{P}_w$ can be an initial guess or an empirical distribution that is obtained by collecting data. In summary, the distribution of $w$ is not known.
+
+The total configuration space of the robot is denoted as $\mathcal{Q}$. The obstacles in the environment are static, bounded convex polygons. The set of obstacles are defined as,
+\begin{equation}
+    \mathcal{Q}_{obs} = \bigcup \limits_{i=1}^M \mathcal{Q}_{obs}^{(i)}
+\end{equation}
+
+The goal of this problem is to reach an area $\mathcal{Q}_{goal}$, that surrounds the goal position $p_g$ without colliding with the obstacles,
+\begin{equation}
+    \begin{split}
+        &P(q_N \notin \mathcal{Q}_{goal}) < \delta_1 \\
+        &P(q_t \in \mathcal{Q}_{obs}) < \delta_2
+    \end{split}
+\end{equation}
+
+Aside from the disturbance $w$, the robot cannot observe its states directly. The observations are done by sensors that are placed on the robot, which are modeled like lasers that calculate the distance to the nearest obstacle in a certain direction. This causes the observation to be a nonlinear function of the state $x_t$, the position of the obstacles $\mathcal{Q}_{obs}$. 
+
+
+\section{Markov Decision Process}
+A Markov Decision Process is characterized by the tuple $<\mathcal{S},\mathcal{A},\mathcal{P},\mathcal{R}>$. $\mathcal{S} \subset \mathbb{R}^n$ is the state space, $\mathcal{A} \subset \mathbb{R}^m$ is the finite set called the action space, $\mathcal{R}: \mathcal{S} \times \mathcal{A} \to \mathbb{R}$ is the reward function, $\mathcal{P}: \mathcal{S} \times \mathcal{A} \to \mathcal{S}$ is the state transition probability which defines the probability distribution over the next states, given the current state and action.
+
+
+At a given time $t$, the agent's state  $s_t \in \mathcal{S}$ contains the measurements from the distance sensors $d_t^{(i)}$, the position of the obstacles $q_{obs}^{(j)}$ and the position of the goal $p_g$.
+
+\begin{equation}
+    s_t = \{d_t^{(i)},q_{obs}^{(j)},p_g\}, i=1,...,k_1, j=1,...,k_2
+\end{equation}
+
+An action $a_t \in \mathcal{A}$ performed by the agent at state $s_t \in \mathcal{S}$, will transition the agent in to a new state $s_{t+1} \in \mathcal{S}$ with the probability $\mathcal{P}(s_{t+1}|s_t,a_t)$. After the transition, the agent will receive a reward $\mathcal{R}(s_t,a_t)$ from the environment. The actions are chosen based on a policy $\pi : \mathcal{S} \to \mathcal{A}$, $\pi (s_t) = a_t$. The collection of all possible policies are denoted by $\Pi$. A sequence 
+\begin{equation}
+    \tau_t^{(\pi)} = (s_t,\pi(s_t),s_{t+1},\pi(s_{t+1}),...,s_{N-1},\pi(s_{N_1}),s_N)
+\end{equation}
+with a terminal state $s_N$ is called a $\pi$ sample path. The discounted cumulative reward for this sample path is given by
+\begin{equation}
+    R^{\pi}(\tau_t) = \sum \limits_{n=t}^{N-1} \gamma^{n-t}\mathcal{R}(s_n,\pi(s_n))
+\end{equation}
+where $\gamma \in [0,1]$ is the discount factor. Due to the randomness in the state transitions, an expected value can be calculated for the returns starting from state $s$,
+\begin{equation}
+    V^{\pi}(s) = \mathbb{E}[R^{\pi}(\tau_t | s_t = s)]
+\end{equation}
+
+
+
+\end{document}
