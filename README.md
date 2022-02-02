@@ -1,1 +1,1 @@
-# Distributionally_Robust_RL
+# Trajectory Planning via Distributionally Robust Reinforcement Learning

@@ -74,6 +74,27 @@ where $\gamma \in [0,1]$ is the discount factor. Due to the randomness in the st
     V^{\pi}(s) = \mathbb{E}[R^{\pi}(\tau_t | s_t = s)]
 \end{equation}
 
+The goal is to find a policy $\pi^*$ such that,
+\begin{equation}
+	\pi^* = arg\max_{\pi} V^{\pi}(s_t)
+\end{equation}
+
+\section{Q Learning}
+For a policy $\pi$, the Q-value for a state action pair is defined as 
+\begin{equation}
+	Q^{\pi}(s_t,a_t) = \int_{\mathcal{S}} \left( \mathcal{R} (s_t,a_t) + \gamma V^{\pi}(s_{t+1}) \right) \mathcal{P}^{\pi}(s_{t+1}|s_t,a_t)ds_{t+1}
+\end{equation}
+
+The Q-value is the expected return obtained by applying action $a$ at state $s$ and following the policy $\pi$. The objective of the Q-learning algorithm is to find the Q-values for the optimal policy $\pi^*$.
+\begin{equation}
+	Q^{\pi^*}(s_t,a_t) = \int_{\mathcal{S}} \left(\mathcal{R}(s_t,a_t) + \gamma \max_{a_{t+1} \in \mathcal{A}} Q^{\pi^*}(s_{t+1},a_{t+1}) \right) \mathcal{P}^{\pi}(s_{t+1}|s_t,a_t)ds_{t+1}
+\end{equation}
+
+The relationship between state-action pairs and the Q-values are learned via a non-linear function $f: \mathbb{R}^n \to \mathbb{R}^m$, where $n$ and $m$ are the dimensions of the state and action space. The optimal Q-function satisfies,
+\begin{equation}
+	Q^*(s,a) = \mathbb{E}_{s'} \left[ \mathcal{R}(s,a) + \gamma \max_{a'} Q^*(s',a')|s,a \right]
+\end{equation} 
+
 
 
 \end{document}
