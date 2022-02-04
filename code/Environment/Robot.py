@@ -10,20 +10,24 @@ class Robot:
     def __init__(self, x0=None):
         """
         Constructor to the Robot class.
-        :param x0: Initial state for the robot. (4,1) numpy array
+        :param x0: Initial state for the robot. (2,1) numpy array
         """
         if x0 is None:
-            self._x = np.zeros((4, 1), dtype=float) # Position and velocity of the Robot (x,y,dx,dy), [m,m,m/s,m/s]
+            self._x = np.zeros((2, 1), dtype=float)  # Position and velocity of the Robot (x,y,dx,dy), [m,m,m/s,m/s]
         else:
             # Input check
-            assert x0.shape == (4, 1), "x0 must have shape (4,1)"
+            assert x0.shape == (2, 1), "x0 must have shape (2,1)"
 
-        self._m = 1      # Mass of the Robot [kg]
-        self._b = 0      # Viscous friction coefficient [kg/s^2]
-        self._Ts = 0.1   # Sampling period [s]
+        # self._m = 1      # Mass of the Robot [kg]
+        # self._b = 0      # Viscous friction coefficient [kg/s^2]
+        # self._Ts = 0.1   # Sampling period [s]
 
         self._input_shape = (2, 1)  # Input dimensions
 
+        self._A = np.array([[1, 0], [0, 1]])
+        self._B = np.array([[1, 0], [0, 1]])
+
+        """
         # Continuous time dynamics
         A_c = np.array([[0, 0, 1, 0],
                         [0, 0, 0, 1],
@@ -44,6 +48,7 @@ class Robot:
 
         self._A = model_d.A
         self._B = model_d.B
+        """
 
     def step(self, u=None, w=None):
         """
@@ -82,5 +87,9 @@ class Robot:
 
         self._x = x
 
-
-
+    def get_state(self):
+        """
+        Access the state of the robot
+        :return: Numpy array of shape (2,)
+        """
+        return self._x.reshape((2,))

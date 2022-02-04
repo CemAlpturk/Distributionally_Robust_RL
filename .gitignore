@@ -8,3 +8,4 @@
 *.bcf
 *.xml
 code/Logs
+code/Environment/__pycache__
