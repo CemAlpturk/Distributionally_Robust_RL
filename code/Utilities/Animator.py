@@ -27,7 +27,7 @@ class Animator:
         "y_min": -20,
         "y_max": 20,
 
-        "robot_radius": 1,
+        "robot_radius": 0.5,
         "robot_border_color": 'k',
         "robot_color": 'r',
     }
@@ -82,7 +82,7 @@ class Animator:
 
         obstacles = []
         for obs in env.obstacles:
-            obstacles.append(plt.Rectangle(obs.center, obs.width, obs.height))
+            obstacles.append(plt.Rectangle(obs.cord, obs.width, obs.height))
         num_obstacles = len(obstacles)
 
         line, = ax.plot(states[0, 0], states[0, 1])

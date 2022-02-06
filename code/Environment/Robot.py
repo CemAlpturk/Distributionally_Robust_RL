@@ -27,6 +27,8 @@ class Robot:
         self._A = np.array([[1, 0], [0, 1]])
         self._B = np.array([[1, 0], [0, 1]])
 
+        self.radius = 0.5
+
         """
         # Continuous time dynamics
         A_c = np.array([[0, 0, 1, 0],

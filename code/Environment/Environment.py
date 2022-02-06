@@ -26,15 +26,14 @@ class Environment:
         obs_h = 2
         obs_w = 10
         pos_range = [[-20, 20], [-20, 20]]
+        cord = [-5, 10]
 
-        self.num_obstacles = 10
+        self.num_obstacles = 1
         self.obstacles = []
 
-        for i in range(self.num_obstacles):
-            self.obstacles.append(Obstacle(width=obs_w, height=obs_h))
-            self.obstacles[i].randomize(lim_center=pos_range)
-
-
+        for k in range(self.num_obstacles):
+            self.obstacles.append(Obstacle(cord=cord, width=obs_w, height=obs_h))
+            # self.obstacles[k].randomize(lim_center=pos_range)
 
     def is_inside(self):
         """
@@ -55,7 +54,7 @@ class Environment:
         :return: Sampled action, Numpy array of shape (2,1)
         """
         action_size = self.action_space.shape[1]
-        ind = random.randint(0, action_size-1)
+        ind = random.randint(0, action_size - 1)
         return self.action_space[:, [ind]]
 
     def step(self, a):
@@ -68,7 +67,8 @@ class Environment:
         # Input check
         assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
         self.robot.step(u=a)
-        return self.robot.get_state()
+        collision = self.is_collision()
+        return self.robot.get_state(), collision
 
     def get_state(self):
         """
@@ -77,6 +77,21 @@ class Environment:
         :return: Numpy array with shape (2,1)
         """
         return self.robot.get_state()
+
+    def is_collision(self):
+        """
+        Checks collision between the robot and all the obstacles
+        :return: Boolean
+        """
+        pos = self.robot.get_state().reshape((2,))
+        for obs in self.obstacles:
+            # Check distances to obstacles
+            d, _ = obs.closest_dist(pos)
+
+            if d <= self.robot.radius:
+                return True
+
+        return False
 
 
 if __name__ == "__main__":
