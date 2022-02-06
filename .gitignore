@@ -9,3 +9,4 @@
 *.xml
 code/Logs
 code/Environment/__pycache__
+code/Logger/__pycache__

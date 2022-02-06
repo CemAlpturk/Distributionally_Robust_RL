@@ -1,6 +1,7 @@
 import random
 import numpy as np
-from Robot import Robot
+from .Robot import Robot
+
 
 class Environment:
     """
@@ -40,7 +41,7 @@ class Environment:
         :return: Sampled action, Numpy array of shape (2,1)
         """
         action_size = self.action_space.shape[0]
-        ind = random.randint(0, action_size-1)
+        ind = random.randint(0, action_size)
         return self.action_space[:, [ind]]
 
     def step(self, a):
@@ -53,6 +54,14 @@ class Environment:
         # Input check
         assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
         self.robot.step(u=a)
+        return self.robot.get_state()
+
+    def get_state(self):
+        """
+        TODO: Return the environments own state s instead of robot state x
+        Returns the state of the environment
+        :return: Numpy array with shape (2,1)
+        """
         return self.robot.get_state()
 
 

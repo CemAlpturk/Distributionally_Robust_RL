@@ -43,10 +43,10 @@ class Logger:
         os.mkdir(ep_dir)
         self.ep_dir = ep_dir
 
-    def log_episode(self, states, episode):
+    def log_episode(self, states, episode=0):
         """
         Saves the episode information to a csv file
-        :param states: Numpy array of shape (num_time_steps, num_states)
+        :param states: array of shape (num_time_steps, num_states)
         :param episode: Episode number, int
         :return: None
         """
