@@ -2,8 +2,14 @@ import os
 import ast
 import numpy as np
 import pandas as pd
+import matplotlib
 from matplotlib import pyplot as plt
+from matplotlib.path import Path
+from matplotlib.patches import PathPatch
 import matplotlib.animation as animation
+
+# For displaying animations in PyCharm
+matplotlib.use("TkAgg")
 
 
 class Animator:
@@ -39,14 +45,15 @@ class Animator:
             array_string = ','.join(array_string.replace('[ ', '[').split())
             return np.array(ast.literal_eval(array_string))
 
+        data = pd.read_csv(data_filename, usecols=['States'])  # , converters={'States': from_np_array})
 
-        data = pd.read_csv(data_filename, usecols=['States'], converters={'States': from_np_array})
-
-        states = data['States'].to_numpy()
+        # states = data['States'].to_numpy()
+        raw_states = data['States'][:].to_numpy(dtype=object)
+        states = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_states[:]]).reshape(
+            (len(raw_states), 2))
 
         print(states)
         Animator._animate(states, plot_settings)
-
 
     @staticmethod
     def _animate(states, plot_settings):
@@ -70,6 +77,8 @@ class Animator:
             plot_settings["robot_radius"],
             color=plot_settings["robot_color"])
 
+        line, = ax.plot(states[0, 0], states[0, 1])
+
         def init():
             ax.add_patch(robot)
             return [robot]
@@ -77,11 +86,14 @@ class Animator:
         def animate(i):
             x_pos = states[i][0]
             y_pos = states[i][1]
+            # path = Path(states[0:i])
+            # patch = PathPatch(path, facecolor='None')
+            line.set_xdata(states[0:i, 0])
+            line.set_ydata(states[0:i, 1])
 
-            #robot.set_xy([x_pos, y_pos])
             robot.center = x_pos, y_pos
 
-            return [robot]
+            return [robot, line]
 
         anim = animation.FuncAnimation(
             fig,
@@ -92,12 +104,3 @@ class Animator:
             blit=True)
 
         plt.show()
-
-
-
-
-
-
-
-
-
