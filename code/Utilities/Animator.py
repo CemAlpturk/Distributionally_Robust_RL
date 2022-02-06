@@ -1,5 +1,6 @@
 import os
 import ast
+
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -7,6 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 import matplotlib.animation as animation
+
 
 # For displaying animations in PyCharm
 matplotlib.use("TkAgg")
@@ -31,10 +33,11 @@ class Animator:
     }
 
     @staticmethod
-    def animate_from_csv(data_filename: str, plot_settings=None):
+    def animate_from_csv(data_filename: str, env, plot_settings=None):
         """
         Reads data from csv and animates an episode
         :param data_filename: str
+        :param env: Environment class object
         :param plot_settings: dict
         :return: None
         """
@@ -52,11 +55,11 @@ class Animator:
         states = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_states[:]]).reshape(
             (len(raw_states), 2))
 
-        print(states)
-        Animator._animate(states, plot_settings)
+        #print(states)
+        Animator._animate(states, env, plot_settings)
 
     @staticmethod
-    def _animate(states, plot_settings):
+    def _animate(states, env, plot_settings):
 
         fig = plt.figure()
         ax = fig.add_subplot(
@@ -77,11 +80,20 @@ class Animator:
             plot_settings["robot_radius"],
             color=plot_settings["robot_color"])
 
+        obstacles = []
+        for obs in env.obstacles:
+            obstacles.append(plt.Rectangle(obs.center, obs.width, obs.height))
+        num_obstacles = len(obstacles)
+
         line, = ax.plot(states[0, 0], states[0, 1])
 
         def init():
             ax.add_patch(robot)
-            return [robot]
+            objects = [robot]
+            for obst in obstacles:
+                ax.add_patch(obst)
+                objects.append(obst)
+            return objects
 
         def animate(i):
             x_pos = states[i][0]
@@ -93,7 +105,11 @@ class Animator:
 
             robot.center = x_pos, y_pos
 
-            return [robot, line]
+            objects = [robot, line]
+            for obst in obstacles:
+                objects.append(obst)
+
+            return objects
 
         anim = animation.FuncAnimation(
             fig,

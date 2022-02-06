@@ -1,6 +1,7 @@
 import random
 import numpy as np
 from .Robot import Robot
+from .Obstacle import Obstacle
 
 
 class Environment:
@@ -22,6 +23,19 @@ class Environment:
         self.robot = Robot()
         self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
 
+        obs_h = 2
+        obs_w = 10
+        pos_range = [[-20, 20], [-20, 20]]
+
+        self.num_obstacles = 10
+        self.obstacles = []
+
+        for i in range(self.num_obstacles):
+            self.obstacles.append(Obstacle(width=obs_w, height=obs_h))
+            self.obstacles[i].randomize(lim_center=pos_range)
+
+
+
     def is_inside(self):
         """
         Check if the robot is inside the borders
@@ -40,8 +54,8 @@ class Environment:
         Sample a random action from the action space with uniform probability
         :return: Sampled action, Numpy array of shape (2,1)
         """
-        action_size = self.action_space.shape[0]
-        ind = random.randint(0, action_size)
+        action_size = self.action_space.shape[1]
+        ind = random.randint(0, action_size-1)
         return self.action_space[:, [ind]]
 
     def step(self, a):

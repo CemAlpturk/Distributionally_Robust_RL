@@ -5,6 +5,7 @@ from csv import writer
 import pandas as pd
 from matplotlib import pyplot as plt
 
+
 class Logger:
     """
     Records activity in the project
@@ -51,7 +52,7 @@ class Logger:
         :return: None
         """
         data = {
-                "States": states
+            "States": states
         }
         df = pd.DataFrame(data)
         dir = os.path.join(self.ep_dir, f"Episode_{episode}.csv")
