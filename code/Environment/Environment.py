@@ -128,7 +128,7 @@ class Environment:
             # Check distance to obstacles
             dist.append(d)
         return np.array(dist)
-    
+
     @staticmethod
     def _intersection(p, q, s, theta):
         d = float('inf')
