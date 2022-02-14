@@ -120,12 +120,20 @@ class Environment:
             # Check distance to borders
             for j in range(4):
                 q = np.array(self.edges[j])
-                s = self.edges[(j+1) % 4] - q
+                s = np.array(self.edges[(j+1) % 4]) - q
                 di = self._intersection(p, q, s, theta)
                 if di < d:
                     d = di
 
             # Check distance to obstacles
+            for obs in self.obstacles:
+                num_edges = len(obs.edges)
+                for j in range(num_edges):
+                    q = np.array(obs.edges[j])
+                    s = np.array(obs.edges[(j+1) % num_edges]) - q
+                    di = self._intersection(p, q, s, theta)
+                    if di < d:
+                        d = di
             dist.append(d)
         return np.array(dist)
 
