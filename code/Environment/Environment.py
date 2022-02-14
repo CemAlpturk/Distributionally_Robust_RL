@@ -121,27 +121,31 @@ class Environment:
             for j in range(4):
                 q = np.array(self.edges[j])
                 s = self.edges[(j+1) % 4] - q
+                di = self._intersection(p, q, s, theta)
+                if di < d:
+                    d = di
 
-                if np.cross(s, r) == 0:
-                    if np.cross(q-p, r) == 0:
-                        # Colinear
-                        # t0 = ((q-p).dot(r))/(r.dot(r))
-                        # t1 = t0 + s.dot(r)/r.dot(r)
-                        d = 0
-                    else:
-                        # Parallel
-                        continue
-                else:
-                    t = np.cross(q-p, s)/np.cross(r, s)
-                    u = np.cross(q-p, r)/np.cross(r, s)
-                    if t >= 0 and 0 <= u <= 1:
-                        # Intersection
-                        intersect = p + t*r
-                        di = np.linalg.norm(p-intersect, 2)
-                        if di < d:
-                            d = di
+            # Check distance to obstacles
             dist.append(d)
         return np.array(dist)
+    
+    @staticmethod
+    def _intersection(p, q, s, theta):
+        d = float('inf')
+        r = np.array([np.cos(theta), np.sin(theta)])
+        if np.cross(s, r) == 0:
+            if np.cross(q - p, r) == 0:
+                d = 0
+        else:
+            t = np.cross(q - p, s) / np.cross(r, s)
+            u = np.cross(q - p, r) / np.cross(r, s)
+            if t >= 0 and 0 <= u <= 1:
+                # Intersection
+                intersect = p + t * r
+                d = np.linalg.norm(p - intersect, 2)
+
+        return d
+
 
 
 
