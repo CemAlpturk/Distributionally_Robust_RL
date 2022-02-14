@@ -29,28 +29,9 @@ class Robot:
 
         self.radius = 0.5
 
-        """
-        # Continuous time dynamics
-        A_c = np.array([[0, 0, 1, 0],
-                        [0, 0, 0, 1],
-                        [0, 0, -self._b / self._m, 0],
-                        [0, 0, 0, -self._b / self._m]])
-
-        B_c = np.array([[0, 0],
-                        [0, 0],
-                        [1 / self._m, 0],
-                        [0, 1 / self._m]])
-
-        C = np.zeros((1, 4))
-        D = 0
-
-        # Convert continuous model to discrete model with sampling period Ts
-        model_c = control.StateSpace(A_c, B_c, C, D)
-        model_d = model_c.sample(self._Ts)
-
-        self._A = model_d.A
-        self._B = model_d.B
-        """
+        # Sensors
+        self.num_sensors = 4
+        self.sensor_angles = np.linspace(0, 2*np.pi, self.num_sensors, endpoint=False)
 
     def step(self, u=None, w=None):
         """

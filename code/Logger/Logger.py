@@ -44,7 +44,7 @@ class Logger:
         os.mkdir(ep_dir)
         self.ep_dir = ep_dir
 
-    def log_episode(self, states, episode=0):
+    def log_episode(self, states, dist, episode=0):
         """
         Saves the episode information to a csv file
         :param states: array of shape (num_time_steps, num_states)
@@ -52,7 +52,8 @@ class Logger:
         :return: None
         """
         data = {
-            "States": states
+            "States": states,
+            "Dist": dist
         }
         df = pd.DataFrame(data)
         dir = os.path.join(self.ep_dir, f"Episode_{episode}.csv")

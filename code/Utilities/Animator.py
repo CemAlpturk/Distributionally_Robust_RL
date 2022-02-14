@@ -30,6 +30,16 @@ class Animator:
         "robot_radius": 0.5,
         "robot_border_color": 'k',
         "robot_color": 'r',
+
+        "show_trajectory": True,
+        "trajectory_color": 'r',
+        "trajectory_style": '-',
+        "trajectory_width": 1.5,
+
+        "show_sensors": True,
+        "sensor_color": 'g',
+        "sensor_style": '--',
+        "sensor_width": 1,
     }
 
     @staticmethod
@@ -48,18 +58,25 @@ class Animator:
             array_string = ','.join(array_string.replace('[ ', '[').split())
             return np.array(ast.literal_eval(array_string))
 
-        data = pd.read_csv(data_filename, usecols=['States'])  # , converters={'States': from_np_array})
+        data = pd.read_csv(data_filename, usecols=['States', 'Dist'])  # , converters={'States': from_np_array})
 
         # states = data['States'].to_numpy()
         raw_states = data['States'][:].to_numpy(dtype=object)
         states = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_states[:]]).reshape(
             (len(raw_states), 2))
 
-        #print(states)
-        Animator._animate(states, env, plot_settings)
+        raw_dists = data['Dist'][:].to_numpy(dtype=object)
+
+        dists = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_dists[:]]).reshape(
+            (len(raw_dists), -1))
+
+        angles = env.robot.sensor_angles
+        plot_settings['angles'] = angles
+
+        Animator._animate(states, dists, env, plot_settings)
 
     @staticmethod
-    def _animate(states, env, plot_settings):
+    def _animate(states, dists, env, plot_settings):
 
         fig = plt.figure()
         ax = fig.add_subplot(
@@ -85,7 +102,23 @@ class Animator:
             obstacles.append(plt.Rectangle(obs.cord, obs.width, obs.height))
         num_obstacles = len(obstacles)
 
-        line, = ax.plot(states[0, 0], states[0, 1])
+        if plot_settings['show_trajectory']:
+            line, = ax.plot(states[0, 0],
+                            states[0, 1],
+                            linestyle=plot_settings['trajectory_style'],
+                            color=plot_settings['trajectory_color'],
+                            linewidth=plot_settings['trajectory_width'])
+
+        if plot_settings['show_sensors']:
+            angles = plot_settings['angles']
+            d_lines = []
+            for i in range(len(angles)):
+                d_line, = ax.plot(states[0, 0],
+                                  states[0, 1],
+                                  linestyle=plot_settings['sensor_style'],
+                                  color=plot_settings['sensor_color'],
+                                  linewidth=plot_settings['sensor_width'])
+                d_lines.append(d_line)
 
         def init():
             ax.add_patch(robot)
@@ -96,16 +129,30 @@ class Animator:
             return objects
 
         def animate(i):
+            objects = []
             x_pos = states[i][0]
             y_pos = states[i][1]
             # path = Path(states[0:i])
             # patch = PathPatch(path, facecolor='None')
-            line.set_xdata(states[0:i, 0])
-            line.set_ydata(states[0:i, 1])
+            if plot_settings['show_trajectory']:
+                line.set_xdata(states[0:i, 0])
+                line.set_ydata(states[0:i, 1])
+                objects.append(line)
+
+            if plot_settings['show_sensors']:
+                for j in range(len(angles)):
+                    p = states[i]
+                    theta = angles[j]
+                    r = np.array([np.cos(theta), np.sin(theta)])
+                    q = p + dists[i][j]*r
+
+                    d_lines[j].set_xdata([p[0], q[0]])
+                    d_lines[j].set_ydata([p[1], q[1]])
+                    objects.append(d_lines[j])
 
             robot.center = x_pos, y_pos
+            objects.append(robot)
 
-            objects = [robot, line]
             for obst in obstacles:
                 objects.append(obst)
 

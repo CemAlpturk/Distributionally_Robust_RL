@@ -20,13 +20,21 @@ class Environment:
         self.y_min = -20
         self.y_max = 20
 
+        # Generate edges
+        upper_right = [self.x_max, self.y_max]
+        lower_right = [self.x_max, self.y_min]
+        lower_left = [self.x_min, self.y_min]
+        upper_left = [self.x_min, self.y_max]
+
+        self.edges = [upper_right, lower_right, lower_left, upper_left]
+
         self.robot = Robot()
         self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
 
         obs_h = 2
         obs_w = 10
         pos_range = [[-20, 20], [-20, 20]]
-        cord = [-5, 10]
+        cord = [-5, 2]
 
         self.num_obstacles = 1
         self.obstacles = []
@@ -68,7 +76,8 @@ class Environment:
         assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
         self.robot.step(u=a)
         collision = self.is_collision()
-        return self.robot.get_state(), collision
+        dist = self.check_sensors()
+        return self.robot.get_state(), collision, dist
 
     def get_state(self):
         """
@@ -76,7 +85,7 @@ class Environment:
         Returns the state of the environment
         :return: Numpy array with shape (2,1)
         """
-        return self.robot.get_state()
+        return self.robot.get_state(), self.check_sensors()
 
     def is_collision(self):
         """
@@ -92,6 +101,53 @@ class Environment:
                 return True
 
         return False
+
+    def check_sensors(self):
+        """
+        For each sensor check the distance to the closest obstacle in its direction
+        :return: distances
+        """
+
+        dist = []
+
+        for i in range(self.robot.num_sensors):
+            d = float("inf")
+
+            theta = self.robot.sensor_angles[i]
+            r = np.array([np.cos(theta), np.sin(theta)])
+            p = self.robot.get_state()
+
+            # Check distance to borders
+            for j in range(4):
+                q = np.array(self.edges[j])
+                s = self.edges[(j+1) % 4] - q
+
+                if np.cross(s, r) == 0:
+                    if np.cross(q-p, r) == 0:
+                        # Colinear
+                        # t0 = ((q-p).dot(r))/(r.dot(r))
+                        # t1 = t0 + s.dot(r)/r.dot(r)
+                        d = 0
+                    else:
+                        # Parallel
+                        continue
+                else:
+                    t = np.cross(q-p, s)/np.cross(r, s)
+                    u = np.cross(q-p, r)/np.cross(r, s)
+                    if t >= 0 and 0 <= u <= 1:
+                        # Intersection
+                        intersect = p + t*r
+                        di = np.linalg.norm(p-intersect, 2)
+                        if di < d:
+                            d = di
+            dist.append(d)
+        return np.array(dist)
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
