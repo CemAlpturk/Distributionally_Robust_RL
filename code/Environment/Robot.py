@@ -30,7 +30,7 @@ class Robot:
         self.radius = 0.5
 
         # Sensors
-        self.num_sensors = 4
+        self.num_sensors = 6
         self.sensor_angles = np.linspace(0, 2*np.pi, self.num_sensors, endpoint=False) + np.pi/2
 
     def step(self, u=None, w=None):

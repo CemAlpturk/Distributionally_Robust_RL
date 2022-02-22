@@ -34,7 +34,7 @@ class Animator:
         "show_trajectory": True,
         "trajectory_color": 'r',
         "trajectory_style": '-',
-        "trajectory_width": 1.5,
+        "trajectory_width": 1,
 
         "show_sensors": True,
         "sensor_color": 'g',

@@ -34,7 +34,7 @@ class Environment:
         obs_h = 2
         obs_w = 10
         pos_range = [[-20, 20], [-20, 20]]
-        cord = [-5, 2]
+        cord = [-5, 10]
 
         self.num_obstacles = 1
         self.obstacles = []
@@ -94,13 +94,13 @@ class Environment:
         """
         pos = self.robot.get_state().reshape((2,))
         for obs in self.obstacles:
-            # Check distances to obstacles
+            # Csheck distances to obstacles
             d, _ = obs.closest_dist(pos)
 
             if d <= self.robot.radius:
                 return True
 
-        return False
+        return not self.is_inside()
 
     def check_sensors(self):
         """
