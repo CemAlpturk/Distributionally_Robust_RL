@@ -8,6 +8,7 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras import Input
 # noinspection PyUnresolvedReferences
 from tensorflow.keras.models import load_model
+from tensorflow.keras.optimizers import Adam
 
 
 class NetworkBuilder:
@@ -21,6 +22,10 @@ class NetworkBuilder:
                           dict), "Invalid input type. Expecting argument 'network_parameters' to be of type 'dict'"
         NetworkBuilder._validate_network_parameters(network_parameters)
 
+        optimizers = {
+            "adam": Adam()
+        }
+
         model = Sequential()
         model.add(Input(shape=network_parameters["input_shape"]))
         # init = network_parameters["initializer"]
@@ -30,7 +35,7 @@ class NetworkBuilder:
 
         model.compile(
             loss=network_parameters["loss_function"],
-            optimizer=network_parameters["optimizer"])
+            optimizer=optimizers[network_parameters["optimizer"]])
 
         return model
 
