@@ -30,7 +30,7 @@ class Environment:
 
         self.robot = Robot()
         self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
-
+        self.action_shape = (self.action_space.shape[1], 1)
         obs_h = 2
         obs_w = 10
         pos_range = [[-20, 20], [-20, 20]]
@@ -42,6 +42,40 @@ class Environment:
         for k in range(self.num_obstacles):
             self.obstacles.append(Obstacle(cord=cord, width=obs_w, height=obs_h))
             # self.obstacles[k].randomize(lim_center=pos_range)
+
+    def get_env_parameters(self):
+        """
+        Returns the environment parameters as a dictionary
+        :return: dict
+        """
+        params = {
+            "x_lims": {
+               "min": self.x_min,
+               "max": self.x_max
+            },
+            "y_lims": {
+               "min": self.y_min,
+               "max": self.y_max
+            },
+            # "action_space": dict(zip(range(self.action_space.shape[1]),self.action_space)),
+            "action_space": self.action_space.T.tolist(),
+            "num_obstacles": self.num_obstacles,
+            "obstacles": {},
+            "robot_radius": self.robot.radius,
+            "num_sensors": self.robot.num_sensors,
+            "sensor_angles": self.robot.sensor_angles.tolist(),
+        }
+
+        # add obstacles to params
+        for idx, obs in enumerate(self.obstacles):
+            params['obstacles'][idx] = {
+                "coord": obs.cord,
+                "width": obs.width,
+                "height": obs.height,
+                "vertices": obs.edges,
+                "static": obs.static
+            }
+        return params
 
     def is_inside(self):
         """
@@ -74,7 +108,8 @@ class Environment:
 
         # Input check
         assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
-        self.robot.step(u=a)
+        w = self._gen_noise()
+        self.robot.step(u=a, w=w)
         collision = self.is_collision()
         dist = self.check_sensors()
         return self.robot.get_state(), collision, dist
@@ -154,6 +189,12 @@ class Environment:
 
         return d
 
+    @staticmethod
+    def _gen_noise():
+        mean = np.zeros(2)
+        # TODO: generalize shape
+        cov = np.ones((2, 2), dtype=float)
+        return np.random.multivariate_normal(mean, cov).reshape((2, 1))
 
 
 
