@@ -49,14 +49,8 @@ class Environment:
         :return: dict
         """
         params = {
-            "x_lims": {
-               "min": self.x_min,
-               "max": self.x_max
-            },
-            "y_lims": {
-               "min": self.y_min,
-               "max": self.y_max
-            },
+            "x_lims": [self.x_min, self.x_max],
+            "y_lims": [self.y_min, self.y_max],
             # "action_space": dict(zip(range(self.action_space.shape[1]),self.action_space)),
             "action_space": self.action_space.T.tolist(),
             "num_obstacles": self.num_obstacles,
@@ -77,12 +71,13 @@ class Environment:
             }
         return params
 
-    def is_inside(self):
+    def is_inside(self, p=None):
         """
         Check if the robot is inside the borders
         :return: Boolean
         """
-        p = self.robot.get_state()
+        if p is None:
+            p = self.robot.get_state()
 
         if p[0] <= self.x_min or p[0] >= self.x_max:
             return False
@@ -122,26 +117,35 @@ class Environment:
         """
         return self.robot.get_state(), self.check_sensors()
 
-    def is_collision(self):
+    def is_collision(self, pos=None):
         """
         Checks collision between the robot and all the obstacles
         :return: Boolean
         """
-        pos = self.robot.get_state().reshape((2,))
+        if pos is None:
+            pos = self.robot.get_state().reshape((2,))
         for obs in self.obstacles:
-            # Csheck distances to obstacles
+            # Check distances to obstacles
             d, _ = obs.closest_dist(pos)
 
             if d <= self.robot.radius:
                 return True
 
-        return not self.is_inside()
+            # Check if the robot is inside the obstacle (necessary?)
+            if obs.edges[3][0] <= pos[0] <= obs.edges[0][0] and \
+                    obs.edges[1][1] <= pos[1] <= obs.edges[0][1]:
+                return True
 
-    def check_sensors(self):
+        return not self.is_inside(pos)
+
+    def check_sensors(self, p=None):
         """
         For each sensor check the distance to the closest obstacle in its direction
         :return: distances
         """
+
+        if p is None:
+            p = self.robot.get_state()
 
         dist = []
 
@@ -150,12 +154,11 @@ class Environment:
 
             theta = self.robot.sensor_angles[i]
             r = np.array([np.cos(theta), np.sin(theta)])
-            p = self.robot.get_state()
 
             # Check distance to borders
             for j in range(4):
                 q = np.array(self.edges[j])
-                s = np.array(self.edges[(j+1) % 4]) - q
+                s = np.array(self.edges[(j + 1) % 4]) - q
                 di = self._intersection(p, q, s, theta)
                 if di < d:
                     d = di
@@ -165,7 +168,7 @@ class Environment:
                 num_edges = len(obs.edges)
                 for j in range(num_edges):
                     q = np.array(obs.edges[j])
-                    s = np.array(obs.edges[(j+1) % num_edges]) - q
+                    s = np.array(obs.edges[(j + 1) % num_edges]) - q
                     di = self._intersection(p, q, s, theta)
                     if di < d:
                         d = di
@@ -193,14 +196,8 @@ class Environment:
     def _gen_noise():
         mean = np.zeros(2)
         # TODO: generalize shape
-        cov = np.ones((2, 2), dtype=float)
+        cov = 0.1 * np.ones((2, 2), dtype=float)
         return np.random.multivariate_normal(mean, cov).reshape((2, 1))
-
-
-
-
-
-
 
 
 if __name__ == "__main__":

@@ -87,6 +87,7 @@ class Animator:
 
         if plot_settings['show_grid']:
             ax.grid()
+            ax.set_axisbelow(True)
 
         initial_state = states[0]
         initial_x_pos = initial_state[0]
