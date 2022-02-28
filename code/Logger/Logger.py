@@ -75,7 +75,7 @@ class Logger:
         :param params: dict
         :return: None
         """
-        print(params)
+        # print(params)
         with open(self.env_param_dir, 'w') as fp:
             json.dump(params, fp, indent=2)
 

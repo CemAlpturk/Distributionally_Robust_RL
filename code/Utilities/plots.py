@@ -49,13 +49,13 @@ def plot_vector_field(env_params_file: str, env, agent):
         obstacles.append(rectangle)
 
     # Create grid
-    n = 15   # number of points n^2
+    n = 20   # number of points n^2
     x = np.linspace(params['x_lims'][0], params['x_lims'][1], n)
     y = np.linspace(params['y_lims'][0], params['y_lims'][1], n)
     xv, yv = np.meshgrid(x, y, indexing='ij')
 
     grid_free = np.ones((n, n), dtype=bool)
-
+    # TODO: Predict in matrix form
     # Check points that fall inside obstacles
     for i in range(n):
         for j in range(n):

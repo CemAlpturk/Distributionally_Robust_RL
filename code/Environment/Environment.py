@@ -39,6 +39,12 @@ class Environment:
         self.num_obstacles = 1
         self.obstacles = []
 
+        self.state_size = 2 + self.robot.num_sensors + 2
+
+        self.sensor_min = 0
+        self.sensor_max = np.sqrt((self.x_max - self.x_min) ** 2 +
+                                  (self.y_max - self.y_min) ** 2)
+
         for k in range(self.num_obstacles):
             self.obstacles.append(Obstacle(cord=cord, width=obs_w, height=obs_h))
             # self.obstacles[k].randomize(lim_center=pos_range)
@@ -107,6 +113,7 @@ class Environment:
         self.robot.step(u=a, w=w)
         collision = self.is_collision()
         dist = self.check_sensors()
+
         return self.robot.get_state(), collision, dist
 
     def get_state(self):
@@ -115,6 +122,7 @@ class Environment:
         Returns the state of the environment
         :return: Numpy array with shape (2,1)
         """
+
         return self.robot.get_state(), self.check_sensors()
 
     def is_collision(self, pos=None):
@@ -175,6 +183,24 @@ class Environment:
             dist.append(d)
         return np.array(dist)
 
+    def get_state_lims(self):
+        """
+        Returns the limits for the states
+        :return: numpy array
+        """
+
+        lims = np.zeros((2+self.robot.num_sensors, 2), dtype=float)
+        lims[0, 0] = self.x_min
+        lims[0, 1] = self.x_max
+
+        lims[1, 0] = self.y_min
+        lims[1, 1] = self.y_max
+
+        for i in range(self.robot.num_sensors):
+            lims[i+2, 0] = self.sensor_min
+            lims[i+2, 1] = self.sensor_max
+        return lims
+
     @staticmethod
     def _intersection(p, q, s, theta):
         d = float('inf')
@@ -196,8 +222,9 @@ class Environment:
     def _gen_noise():
         mean = np.zeros(2)
         # TODO: generalize shape
-        cov = 0.1 * np.ones((2, 2), dtype=float)
+        cov = 0.3 * np.ones((2, 2), dtype=float)
         return np.random.multivariate_normal(mean, cov).reshape((2, 1))
+
 
 
 if __name__ == "__main__":
