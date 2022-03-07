@@ -12,6 +12,17 @@ from Utilities.Animator import Animator
 from Utilities import plots
 
 
+HEADER = '\033[95m'
+OKBLUE = '\033[94m'
+OKCYAN = '\033[96m'
+OKGREEN = '\033[92m'
+WARNING = '\033[93m'
+FAIL = '\033[91m'
+ENDC = '\033[0m'
+BOLD = '\033[1m'
+UNDERLINE = '\033[4m'
+
+
 class DRAgent:
     """
     
@@ -21,8 +32,12 @@ class DRAgent:
         """
         Class Constructor
         """
-
-        self.model = NetworkBuilder.build(network_parameters)
+        if network_parameters["dueling"]:
+            self.q_network = NetworkBuilder.build_dueling(network_parameters)
+            self.target_network = NetworkBuilder.build_dueling(network_parameters)
+        else:
+            self.q_network = NetworkBuilder.build(network_parameters)
+            self.target_network = NetworkBuilder.build(network_parameters)
         self.state_lims = None
         self.normalize = False
         self.num_states = network_parameters['input_shape'][0]
@@ -32,12 +47,13 @@ class DRAgent:
 
         self.experience = deque(maxlen=100)
         self.Logger = Logger()
+        self.episode_loss = []
 
         env_parameters = env.get_env_parameters()
         self.Logger.log_env(env_parameters)
 
-        self.q_network = NetworkBuilder.build(network_parameters)
-        self.target_network = NetworkBuilder.build(network_parameters)
+        # self.q_network = NetworkBuilder.build(network_parameters)
+        # self.target_network = NetworkBuilder.build(network_parameters)
         self._align_target_model()
 
     def train(
@@ -56,7 +72,8 @@ class DRAgent:
             lamb=5,
             d_lamb=0.01,
             max_lamb=20,
-            stochastic=False):
+            stochastic=False,
+            render=False):
         """
         NOT COMPLETE!!!
         :return: None
@@ -69,16 +86,17 @@ class DRAgent:
             total_reward = 0
             steps = 0
             state = self.env.reset(lamb).reshape(1, -1)
-            # goal = self.env.goal
+            goal = False
             # state = pos.reshape(1, -1)
 
             # Begin episode
             for step in range(max_time_steps):
+                # print(state)
                 action_idx = self.act(state, exploration_rate)
                 action = self.actions[:, [action_idx]]
-                next_state, end = self.env.step(action)
+                next_state, end, goal = self.env.step(action)
                 next_state = next_state.reshape(1, -1)
-                reward = self.env.reward(next_state)  # random for now
+                reward = self.env.reward(next_state)
 
                 self._store(state, action_idx, reward, next_state, end)
 
@@ -93,13 +111,25 @@ class DRAgent:
                 if end:
                     break
 
-            print(
-                f"Episode: {ep:>5}, "
-                f"Score: {total_reward:>10.1f}, "
-                f"Steps: {steps:>4}, "
-                f"Eps: {exploration_rate:>0.2f}, "
-                f"Lambda: {lamb:>0.1f}"
-            )
+            self.Logger.log_loss(np.mean(self.episode_loss), ep)
+            self.episode_loss = []
+            if goal:
+                print(
+                    OKGREEN + f"Episode: {ep:>5}, " + ENDC +
+                    OKGREEN + f"Score: {total_reward:>10.1f}, " + ENDC +
+                    OKGREEN + f"Steps: {steps:>4}, " + ENDC +
+                    OKGREEN + f"Eps: {exploration_rate:>0.2f}, " + ENDC +
+                    OKGREEN + f"Lambda: {lamb:>0.1f}" + ENDC
+                )
+            else:
+                print(
+                    f"Episode: {ep:>5}, "
+                    f"Score: {total_reward:>10.1f}, "
+                    f"Steps: {steps:>4}, "
+                    f"Eps: {exploration_rate:>0.2f}, "
+                    f"Lambda: {lamb:>0.1f}"
+                )
+
             if exploration_rate > min_exploration_rate:
                 exploration_rate *= exploration_rate_decay
 
@@ -111,14 +141,14 @@ class DRAgent:
 
             if ep % evaluate_model_period == 0:
                 self._evaluate(evaluation_size, max_time_steps, ep, lamb)
-                # dir = self.Logger.ep_dir
-                # path = os.path.join(dir, f"Episode_{ep}.csv")
-                # Animator.animate_from_csv(path, self.env)
+                if render:
+                    dir = self.Logger.ep_dir
+                    path = os.path.join(dir, f"Episode_{ep}.csv")
+                    Animator.animate_from_csv(path, self.env)
 
-                # path = self.Logger.env_param_dir
-                # plots.plot_vector_field(path, self.env, self)
-                # time.sleep(5)
-                # plt.close('all')
+                    path = self.Logger.env_param_dir
+                    plots.plot_vector_field(path, self.env, self)
+
 
     def _experience_replay(self, batch_size, discount=0.9, epochs=1):
         """
@@ -133,6 +163,7 @@ class DRAgent:
         targets = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
 
         history = self.q_network.fit(states, targets, epochs=epochs, verbose=0, batch_size=batch_size)
+        self.episode_loss.append(history.history['loss'][0])
 
     def _extract_data(self, batch_size, minibatch):
         """
@@ -166,6 +197,7 @@ class DRAgent:
 
         i = terminated == 0
         targets = np.zeros((batch_size, self.num_actions))
+        # targets = self.q_network.predict(states)
         t = self.target_network.predict(next_states[i, :])
 
         targets[range(batch_size), actions] = rewards
@@ -192,7 +224,7 @@ class DRAgent:
                 return action
         if self.normalize:
             state = self._normalize_states(state)
-        q_values = self.model.predict(state)
+        q_values = self.q_network.predict(state)
         if stoc:
             # Apply softmax
             probs = self._softmax(q_values)[0]
@@ -243,20 +275,22 @@ class DRAgent:
             # goal = self.env.goal
             # state = x.reshape(1, -1)
             total_reward = 0
-            states.append(state)
+            if play == 0:
+                states.append(state)
             state = state.reshape(1, -1)
             # dists.append(dist)
             for i in range(max_steps):
                 action_idx = self.act(state, eps=-1, stoc=False)
                 action = self.actions[:, [action_idx]]
 
-                x, end = self.env.step(action)
+                x, end, goal = self.env.step(action)
                 next_state = x.reshape(1, -1)
                 reward = self.env.reward(next_state)
 
                 # Log play
                 if play == 0:
                     states.append(x)
+
                     # dists.append(dist)
 
                 total_reward += reward
@@ -269,7 +303,6 @@ class DRAgent:
         median_reward = np.median(total_rewards)
         std_reward = np.std(total_rewards)
         print(f"Average Total Reward: {average_reward:0.2f}, Median Total Reward: {median_reward:0.2f}")
-
         # Log the recorded play
         self.Logger.log_episode(states, episode)
         self.Logger.log_eval(episode, average_reward, median_reward, std_reward)
@@ -282,3 +315,6 @@ class DRAgent:
         probs = exp / exp_sum
 
         return probs
+
+
+
