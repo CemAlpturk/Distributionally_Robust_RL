@@ -23,7 +23,7 @@ class NetworkBuilder:
         NetworkBuilder._validate_network_parameters(network_parameters)
 
         optimizers = {
-            "adam": Adam()
+            "adam": Adam(lr=0.01)
         }
 
         model = Sequential()

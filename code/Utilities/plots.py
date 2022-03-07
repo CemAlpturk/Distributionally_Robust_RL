@@ -63,8 +63,8 @@ def plot_vector_field(env_params_file: str, env, agent):
             if not env.is_collision(pos):
                 # Calculate direction of arrow
                 dist = env.check_sensors(pos)
-                state = np.concatenate((pos, dist))
-                action_idx = agent.act(state.reshape((8, 1)).T)
+                state = pos #np.concatenate((pos, dist))
+                action_idx = agent.act(state.reshape((1, -1)))
                 action = env.action_space[:, action_idx]
                 # action = env.sample_action().reshape((2,))
                 dx = action[0]

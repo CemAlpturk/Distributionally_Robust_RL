@@ -36,10 +36,15 @@ class Animator:
         "trajectory_style": '-',
         "trajectory_width": 1,
 
-        "show_sensors": True,
+        "show_sensors": False,
         "sensor_color": 'g',
         "sensor_style": '--',
         "sensor_width": 1,
+
+        "show_goal": True,
+        'goal_color': 'g',
+        'goal_border_color': 'k',
+        'goal_alpha': 0.5
     }
 
     @staticmethod
@@ -54,49 +59,62 @@ class Animator:
         if plot_settings is None:
             plot_settings = Animator._default_plot_settings
 
+        env_settings = env.get_env_parameters()
+
         def from_np_array(array_string):
             array_string = ','.join(array_string.replace('[ ', '[').split())
             return np.array(ast.literal_eval(array_string))
 
-        data = pd.read_csv(data_filename, usecols=['States', 'Dist'])  # , converters={'States': from_np_array})
+        data = pd.read_csv(data_filename, usecols=env_settings['states'])
 
+        pos = data[np.array(env_settings['states'])[env_settings['pos_idx']]].to_numpy()
+        goal = data[np.array(env_settings['states'])[env_settings['goal_idx']]].to_numpy()
         # states = data['States'].to_numpy()
-        raw_states = data['States'][:].to_numpy(dtype=object)
-        states = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_states[:]]).reshape(
-            (len(raw_states), 2))
+        # raw_states = data['States'][:].to_numpy(dtype=object)
+        # states = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_states[:]]).reshape(
+        #    (len(raw_states), 2))
 
-        raw_dists = data['Dist'][:].to_numpy(dtype=object)
 
-        dists = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_dists[:]]).reshape(
-            (len(raw_dists), -1))
+        # raw_dists = data['Dist'][:].to_numpy(dtype=object)
+
+
+        # dists = np.array([np.array(list(map(float, x[1:-1].split()))) for x in raw_dists[:]]).reshape(
+        #     (len(raw_dists), -1))
 
         angles = env.robot.sensor_angles
         plot_settings['angles'] = angles
 
-        Animator._animate(states, dists, env, plot_settings)
+        Animator._animate(pos, goal, env, plot_settings, env_settings)
 
     @staticmethod
-    def _animate(states, dists, env, plot_settings):
+    def _animate(pos, goals, env, plot_settings, env_settings):
 
         fig = plt.figure()
         ax = fig.add_subplot(
             111,
             aspect='equal',
-            xlim=(plot_settings["x_min"], plot_settings["x_max"]),
-            ylim=(plot_settings["y_min"], plot_settings["y_max"]))
+            xlim=env_settings['x_lims'],
+            ylim=env_settings['y_lims'])
 
         if plot_settings['show_grid']:
             ax.grid()
             ax.set_axisbelow(True)
 
-        initial_state = states[0]
-        initial_x_pos = initial_state[0]
-        initial_y_pos = initial_state[1]
+        # initial_state = states[0]
+        initial_x_pos = pos[0, 0]
+        initial_y_pos = pos[0, 1]
 
         robot = plt.Circle(
             (initial_x_pos, initial_y_pos),
             plot_settings["robot_radius"],
             color=plot_settings["robot_color"])
+
+        goal_pos = goals[0]
+        goal = plt.Circle(goal_pos,
+                          env_settings['goal_radius'],
+                          facecolor=plot_settings['goal_color'],
+                          alpha=plot_settings['goal_alpha'],
+                          edgecolor=plot_settings['goal_border_color'])
 
         obstacles = []
         for obs in env.obstacles:
@@ -104,8 +122,8 @@ class Animator:
         num_obstacles = len(obstacles)
 
         if plot_settings['show_trajectory']:
-            line, = ax.plot(states[0, 0],
-                            states[0, 1],
+            line, = ax.plot(pos[0, 0],
+                            pos[0, 1],
                             linestyle=plot_settings['trajectory_style'],
                             color=plot_settings['trajectory_color'],
                             linewidth=plot_settings['trajectory_width'])
@@ -114,8 +132,8 @@ class Animator:
             angles = plot_settings['angles']
             d_lines = []
             for i in range(len(angles)):
-                d_line, = ax.plot(states[0, 0],
-                                  states[0, 1],
+                d_line, = ax.plot(pos[0, 0],
+                                  pos[0, 1],
                                   linestyle=plot_settings['sensor_style'],
                                   color=plot_settings['sensor_color'],
                                   linewidth=plot_settings['sensor_width'])
@@ -123,7 +141,8 @@ class Animator:
 
         def init():
             ax.add_patch(robot)
-            objects = [robot]
+            ax.add_patch(goal)
+            objects = [robot, goal]
             for obst in obstacles:
                 ax.add_patch(obst)
                 objects.append(obst)
@@ -131,28 +150,29 @@ class Animator:
 
         def animate(i):
             objects = []
-            x_pos = states[i][0]
-            y_pos = states[i][1]
+            x_pos = pos[i, 0]
+            y_pos = pos[i, 1]
             # path = Path(states[0:i])
             # patch = PathPatch(path, facecolor='None')
             if plot_settings['show_trajectory']:
-                line.set_xdata(states[0:i, 0])
-                line.set_ydata(states[0:i, 1])
+                line.set_xdata(pos[0:i, 0])
+                line.set_ydata(pos[0:i, 1])
                 objects.append(line)
 
-            if plot_settings['show_sensors']:
-                for j in range(len(angles)):
-                    p = states[i]
-                    theta = angles[j]
-                    r = np.array([np.cos(theta), np.sin(theta)])
-                    q = p + dists[i][j]*r
-
-                    d_lines[j].set_xdata([p[0], q[0]])
-                    d_lines[j].set_ydata([p[1], q[1]])
-                    objects.append(d_lines[j])
+            # if plot_settings['show_sensors']:
+            #     for j in range(len(angles)):
+            #         p = states[i]
+            #         theta = angles[j]
+            #         r = np.array([np.cos(theta), np.sin(theta)])
+            #         q = p + dists[i][j]*r
+            #
+            #         d_lines[j].set_xdata([p[0], q[0]])
+            #         d_lines[j].set_ydata([p[1], q[1]])
+            #         objects.append(d_lines[j])
 
             robot.center = x_pos, y_pos
             objects.append(robot)
+            objects.append(goal)
 
             for obst in obstacles:
                 objects.append(obst)
@@ -163,8 +183,10 @@ class Animator:
             fig,
             animate,
             # interval=1.0,
-            frames=len(states),
+            frames=pos.shape[0],
             init_func=init,
             blit=True)
 
-        plt.show()
+        plt.show(block=False)
+        plt.pause(5)
+        plt.close('all')

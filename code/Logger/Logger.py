@@ -6,6 +6,8 @@ from csv import writer
 
 import pandas as pd
 from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use("TkAgg")
 
 
 class Logger:
@@ -21,7 +23,9 @@ class Logger:
         self._file_name = "logs.csv"  # Output file
         self.env_param_name = "env_params.json"
         self.network_param_name = "network_params.json"
+        self.evals_file_name = "evals.csv"
         self._init_directory()
+        self.env_params = None
 
     def _init_directory(self):
         """
@@ -48,24 +52,45 @@ class Logger:
         os.mkdir(ep_dir)
         self.ep_dir = ep_dir
 
+        # Create a directory for evaluation scores
+        eval_dir = os.path.join(timedir, "Evaluation")
+        print(f"Creating 'Evaluation' directory at: {timedir}")
+        os.mkdir(eval_dir)
+        self.evals_dir = os.path.join(eval_dir, self.evals_file_name)
+        with open(self.evals_dir, 'w', newline='') as write_obj:
+            csv_writer = writer(write_obj)
+            csv_writer.writerow(["Episode", "Score_Mean", "Score_Median", "Score_std"])
+
         # Create path for env parameters
         self.env_param_dir = os.path.join(timedir, self.env_param_name)
 
         # Create path for network parameters
         self.network_param_dir = os.path.join(timedir, self.network_param_name)
 
-    def log_episode(self, states, dist, episode=0):
+    def log_eval(self, episode, score_mean, score_median, score_std):
+        with open(self.evals_dir, 'a+', newline='') as write_obj:
+            csv_writer = writer(write_obj)
+            csv_writer.writerow([episode,score_mean,score_median,score_std])
+
+        # Generate plots
+        df = pd.read_csv(self.evals_dir)
+        ax = df.plot(x="Episode", y="Score_Mean", color='b')
+        df["Moving_Score_Mean"] = df["Score_Mean"].rolling(window=3).mean().fillna(0)
+        df.plot(x="Episode", y="Moving_Score_Mean", ax=ax)
+        fig = ax.get_figure()
+        fig_dir = os.path.join(os.path.dirname(self.evals_dir), "Scores.png")
+        fig.savefig(fig_dir)
+        plt.close(fig)
+
+    def log_episode(self, states, episode=0):
         """
         Saves the episode information to a csv file
         :param states: array of shape (num_time_steps, num_states)
         :param episode: Episode number, int
         :return: None
         """
-        data = {
-            "States": states,
-            "Dist": dist
-        }
-        df = pd.DataFrame(data)
+
+        df = pd.DataFrame(states, columns=self.env_params['states'])
         dir = os.path.join(self.ep_dir, f"Episode_{episode}.csv")
         df.to_csv(dir, index=False)
 
@@ -76,6 +101,7 @@ class Logger:
         :return: None
         """
         # print(params)
+        self.env_params = params
         with open(self.env_param_dir, 'w') as fp:
             json.dump(params, fp, indent=2)
 

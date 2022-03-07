@@ -6,7 +6,7 @@ from .Obstacle import Obstacle
 
 class Environment:
     """
-    Environment definitions
+    Environment class
     """
 
     def __init__(self):
@@ -14,11 +14,11 @@ class Environment:
         Constructor for the Map class
         """
         # Borders of the environment
-        self.x_min = -20
-        self.x_max = 20
+        self.x_min = -10
+        self.x_max = 10
 
-        self.y_min = -20
-        self.y_max = 20
+        self.y_min = -10
+        self.y_max = 10
 
         # Generate edges
         upper_right = [self.x_max, self.y_max]
@@ -33,10 +33,10 @@ class Environment:
         self.action_shape = (self.action_space.shape[1], 1)
         obs_h = 2
         obs_w = 10
-        pos_range = [[-20, 20], [-20, 20]]
+        # pos_range = [[-20, 20], [-20, 20]]
         cord = [-5, 10]
 
-        self.num_obstacles = 1
+        self.num_obstacles = 0
         self.obstacles = []
 
         self.state_size = 2 + self.robot.num_sensors + 2
@@ -45,9 +45,42 @@ class Environment:
         self.sensor_max = np.sqrt((self.x_max - self.x_min) ** 2 +
                                   (self.y_max - self.y_min) ** 2)
 
+        self.goal = None
+        self.goal_radius = 2
+
+
+
         for k in range(self.num_obstacles):
             self.obstacles.append(Obstacle(cord=cord, width=obs_w, height=obs_h))
             # self.obstacles[k].randomize(lim_center=pos_range)
+
+    def reset(self, lamb=20):
+        """
+        Reset the environment
+        TODO: Randomize
+        :return: numpy array
+        """
+        pos_min = [self.x_min, self.y_min]
+        pos_max = [self.x_max, 0]
+        static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
+        self.robot.set_state(static_state)
+
+        self.goal = np.array([0,5])
+
+        # # distance between pos and goal at most lambda
+        # goal_min = [self.x_min, self.y_min]
+        # goal_max = [self.x_max, self.y_max]
+        # r = lamb * np.sqrt(np.random.rand())
+        # theta = 2 * np.pi * np.random.rand()
+        # goal = np.array([r*np.cos(theta), r*np.sin(theta)])
+        # while not self.is_inside(goal):
+        #     r = lamb * np.sqrt(np.random.rand())
+        #     theta = 2 * np.pi * np.random.rand()
+        #     goal = np.array([r*np.cos(theta), r*np.sin(theta)])
+        # self.goal = goal
+
+        #return self.robot.get_state(), self.check_sensors()
+        return np.concatenate((self.robot.get_state(), self.goal))
 
     def get_env_parameters(self):
         """
@@ -57,6 +90,8 @@ class Environment:
         params = {
             "x_lims": [self.x_min, self.x_max],
             "y_lims": [self.y_min, self.y_max],
+            "goal_x_lims": [self.x_min, self.x_max],
+            "goal_y_lims": [self.y_min, 0],
             # "action_space": dict(zip(range(self.action_space.shape[1]),self.action_space)),
             "action_space": self.action_space.T.tolist(),
             "num_obstacles": self.num_obstacles,
@@ -64,6 +99,10 @@ class Environment:
             "robot_radius": self.robot.radius,
             "num_sensors": self.robot.num_sensors,
             "sensor_angles": self.robot.sensor_angles.tolist(),
+            "goal_radius": self.goal_radius,
+            "states": ['pos_x', 'pos_y', 'goal_x', 'goal_y'],
+            "pos_idx": [0, 1],
+            "goal_idx": [2, 3]
         }
 
         # add obstacles to params
@@ -111,10 +150,10 @@ class Environment:
         assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
         w = self._gen_noise()
         self.robot.step(u=a, w=w)
-        collision = self.is_collision()
-        dist = self.check_sensors()
+        end = self.is_collision() or self.reached_goal()
+        # dist = self.check_sensors()
 
-        return self.robot.get_state(), collision, dist
+        return np.concatenate((self.robot.get_state(), self.goal)), end
 
     def get_state(self):
         """
@@ -124,6 +163,17 @@ class Environment:
         """
 
         return self.robot.get_state(), self.check_sensors()
+
+    def reached_goal(self, pos=None):
+        """
+        TODO: Add summary
+        :param pos:
+        :return:
+        """
+        if pos is None:
+            pos = self.robot.get_state()
+
+        return np.linalg.norm(pos - self.goal, 2) <= self.goal_radius
 
     def is_collision(self, pos=None):
         """
@@ -189,17 +239,46 @@ class Environment:
         :return: numpy array
         """
 
-        lims = np.zeros((2+self.robot.num_sensors, 2), dtype=float)
+        lims = np.zeros((2 + 2, 2), dtype=float)
         lims[0, 0] = self.x_min
         lims[0, 1] = self.x_max
 
         lims[1, 0] = self.y_min
         lims[1, 1] = self.y_max
 
-        for i in range(self.robot.num_sensors):
-            lims[i+2, 0] = self.sensor_min
-            lims[i+2, 1] = self.sensor_max
+        lims[2, 0] = self.x_min
+        lims[2, 1] = self.x_max
+
+        lims[3, 0] = self.y_min
+        lims[3, 1] = self.y_max
+
+        # for i in range(self.robot.num_sensors):
+        #     lims[i + 2, 0] = self.sensor_min
+        #     lims[i + 2, 1] = self.sensor_max
         return lims
+
+    def reward(self, s_):
+        """
+        Dummy function for now
+        :param s_:
+        :return:
+        """
+        reward = -0.01 # self._dist_to_goal(s_[0, 0:2])/20
+        if self.is_collision(s_[0, 0:2]):
+            reward -= 10
+
+        if self.reached_goal(s_[0, 0:2]):
+            reward += 10
+
+        return reward
+
+    def _dist_to_goal(self, pos):
+        """
+        TODO: Add summary
+        :param pos:
+        :return:
+        """
+        return np.linalg.norm(pos - self.goal, 2)
 
     @staticmethod
     def _intersection(p, q, s, theta):
@@ -222,9 +301,8 @@ class Environment:
     def _gen_noise():
         mean = np.zeros(2)
         # TODO: generalize shape
-        cov = 0.3 * np.ones((2, 2), dtype=float)
+        cov = 0 * np.ones((2, 2), dtype=float)
         return np.random.multivariate_normal(mean, cov).reshape((2, 1))
-
 
 
 if __name__ == "__main__":
