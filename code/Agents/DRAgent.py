@@ -40,19 +40,28 @@ class DRAgent:
         self.target_network = NetworkBuilder.build(network_parameters)
         self._align_target_model()
 
-    def train(self):
+    def train(
+            self,
+            max_episodes: int,
+            exploration_rate=0.9,
+            discount=0.9,
+            batch_size=32,
+            max_time_steps=100,
+            warm_start=False,
+            model_allignment_period=100,
+            evaluate_model_period=50,
+            evaluation_size=10,
+            exploration_rate_decay=0.999,
+            min_exploration_rate=0.1,
+            lamb=5,
+            d_lamb=0.01,
+            max_lamb=20,
+            stochastic=False):
         """
         NOT COMPLETE!!!
         :return: None
         """
-        lamb = 5
-        d_lamb = 0.01
-        lamb_max = 10
-        max_episodes = 10000
-        max_time_steps = 20
-        gamma = 0.9
-        batch_size = 32
-        eps = 0.99
+
         # path = self.Logger.env_param_dir
         # plots.plot_vector_field(path, self.env, self)
 
@@ -60,12 +69,12 @@ class DRAgent:
             total_reward = 0
             steps = 0
             state = self.env.reset(lamb).reshape(1, -1)
-            #goal = self.env.goal
-            #state = pos.reshape(1, -1)
+            # goal = self.env.goal
+            # state = pos.reshape(1, -1)
 
             # Begin episode
             for step in range(max_time_steps):
-                action_idx = self.act(state, eps)
+                action_idx = self.act(state, exploration_rate)
                 action = self.actions[:, [action_idx]]
                 next_state, end = self.env.step(action)
                 next_state = next_state.reshape(1, -1)
@@ -78,9 +87,8 @@ class DRAgent:
                 state = next_state
                 steps = step + 1
 
-
                 if len(self.experience) >= batch_size:
-                    self._experience_replay(batch_size, gamma, 1)
+                    self._experience_replay(batch_size, discount, 1)
 
                 if end:
                     break
@@ -89,20 +97,20 @@ class DRAgent:
                 f"Episode: {ep:>5}, "
                 f"Score: {total_reward:>10.1f}, "
                 f"Steps: {steps:>4}, "
-                f"Eps: {eps:>0.2f}, "
+                f"Eps: {exploration_rate:>0.2f}, "
                 f"Lambda: {lamb:>0.1f}"
             )
-            if eps > 0.1:
-                eps *= 0.9999
+            if exploration_rate > min_exploration_rate:
+                exploration_rate *= exploration_rate_decay
 
-            if lamb < lamb_max:
+            if lamb < max_lamb:
                 lamb += d_lamb
 
-            if ep % 100 == 0:
+            if ep % model_allignment_period == 0:
                 self._align_target_model()
 
-            if ep % 100 == 0:
-                self._evaluate(10, max_time_steps, ep, lamb)
+            if ep % evaluate_model_period == 0:
+                self._evaluate(evaluation_size, max_time_steps, ep, lamb)
                 # dir = self.Logger.ep_dir
                 # path = os.path.join(dir, f"Episode_{ep}.csv")
                 # Animator.animate_from_csv(path, self.env)
@@ -111,11 +119,6 @@ class DRAgent:
                 # plots.plot_vector_field(path, self.env, self)
                 # time.sleep(5)
                 # plt.close('all')
-
-
-
-
-
 
     def _experience_replay(self, batch_size, discount=0.9, epochs=1):
         """
@@ -127,11 +130,9 @@ class DRAgent:
         """
         minibatch = random.sample(self.experience, batch_size)
         states, actions, rewards, next_states, terminated = self._extract_data(batch_size, minibatch)
-        targets = self._build_targets(batch_size, states,next_states,rewards,actions,terminated,discount)
+        targets = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
 
         history = self.q_network.fit(states, targets, epochs=epochs, verbose=0, batch_size=batch_size)
-
-
 
     def _extract_data(self, batch_size, minibatch):
         """
@@ -142,10 +143,10 @@ class DRAgent:
         """
         # TODO: find a more efficient way to unpack values
         # Extract the values
-        states = np.array([x[0] for x in minibatch]).reshape(batch_size, -1) # ??
+        states = np.array([x[0] for x in minibatch]).reshape(batch_size, -1)  # ??
         actions = np.array([x[1] for x in minibatch])
         rewards = np.array([x[2] for x in minibatch])
-        next_states = np.array([x[3] for x in minibatch]).reshape(batch_size, -1) # ??
+        next_states = np.array([x[3] for x in minibatch]).reshape(batch_size, -1)  # ??
         terminated = np.array([x[4] for x in minibatch])
 
         return states, actions, rewards, next_states, terminated
@@ -172,7 +173,6 @@ class DRAgent:
 
         return targets
 
-
     def _store(self, state, action, reward, next_state, terminated):
         """
         TODO: Add Summary
@@ -185,7 +185,7 @@ class DRAgent:
         """
         self.experience.append((state, action, reward, next_state, terminated))
 
-    def act(self, state, eps=-1, stoc=False):
+    def act(self, state, eps=-1.0, stoc=False):
         if eps > 0:
             if np.random.rand() < eps:
                 action = np.random.choice(range(4))
@@ -273,9 +273,6 @@ class DRAgent:
         # Log the recorded play
         self.Logger.log_episode(states, episode)
         self.Logger.log_eval(episode, average_reward, median_reward, std_reward)
-
-
-
 
     @staticmethod
     def _softmax(q):
