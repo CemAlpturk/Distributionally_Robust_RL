@@ -24,6 +24,7 @@ class Logger:
         self.env_param_name = "env_params.json"
         self.network_param_name = "network_params.json"
         self.evals_file_name = "evals.csv"
+        self.loss_file_name = "loss.csv"
         self._init_directory()
         self.env_params = None
 
@@ -67,6 +68,15 @@ class Logger:
         # Create path for network parameters
         self.network_param_dir = os.path.join(timedir, self.network_param_name)
 
+        # Create directory for episode losses
+        losses_dir = os.path.join(timedir, "Loss")
+        print(f"Creating 'Loss' directory at: {timedir}")
+        os.mkdir(losses_dir)
+        self.loss_dir = os.path.join(losses_dir, self.loss_file_name)
+        with open(self.loss_dir, 'w', newline='') as write_obj:
+            csv_writer = writer(write_obj)
+            csv_writer.writerow(["Episode", "Loss"])
+
     def log_eval(self, episode, score_mean, score_median, score_std):
         with open(self.evals_dir, 'a+', newline='') as write_obj:
             csv_writer = writer(write_obj)
@@ -81,6 +91,23 @@ class Logger:
         fig_dir = os.path.join(os.path.dirname(self.evals_dir), "Scores.png")
         fig.savefig(fig_dir)
         plt.close(fig)
+
+    def log_loss(self, loss, episode):
+        """
+        Appends average loss score for each episode to the appropriate file
+        """
+        with open(self.loss_dir, 'a+', newline='') as write_obj:
+            csv_writer = writer(write_obj)
+            csv_writer.writerow([episode, loss])
+
+        if episode % 10 == 0:
+            # Generate plot for losses
+            df = pd.read_csv(self.loss_dir)
+            ax = df.plot(x="Episode", y="Loss")
+            fig = ax.get_figure()
+            fig_dir = os.path.join(os.path.dirname(self.loss_dir), "Loss.png")
+            fig.savefig(fig_dir)
+            plt.close()
 
     def log_episode(self, states, episode=0):
         """

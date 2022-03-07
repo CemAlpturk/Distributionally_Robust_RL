@@ -60,16 +60,17 @@ class Environment:
         TODO: Randomize
         :return: numpy array
         """
-        pos_min = [self.x_min, self.y_min]
-        pos_max = [self.x_max, 0]
+        pos_min = [self.x_min/2, self.y_min/2]
+        pos_max = [self.x_max/2, 0]
         static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
         self.robot.set_state(static_state)
 
-        self.goal = np.array([0,5])
+        # self.goal = np.array([0,5])
 
         # # distance between pos and goal at most lambda
-        # goal_min = [self.x_min, self.y_min]
-        # goal_max = [self.x_max, self.y_max]
+        goal_min = [self.x_min, 0]
+        goal_max = [self.x_max, self.y_max]
+        goal = np.random.uniform(low=goal_min, high=goal_max)
         # r = lamb * np.sqrt(np.random.rand())
         # theta = 2 * np.pi * np.random.rand()
         # goal = np.array([r*np.cos(theta), r*np.sin(theta)])
@@ -77,7 +78,7 @@ class Environment:
         #     r = lamb * np.sqrt(np.random.rand())
         #     theta = 2 * np.pi * np.random.rand()
         #     goal = np.array([r*np.cos(theta), r*np.sin(theta)])
-        # self.goal = goal
+        self.goal = goal
 
         #return self.robot.get_state(), self.check_sensors()
         return np.concatenate((self.robot.get_state(), self.goal))
@@ -150,10 +151,12 @@ class Environment:
         assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
         w = self._gen_noise()
         self.robot.step(u=a, w=w)
-        end = self.is_collision() or self.reached_goal()
+        col = self.is_collision()
+        goal = self.reached_goal()
+        end = col or goal
         # dist = self.check_sensors()
 
-        return np.concatenate((self.robot.get_state(), self.goal)), end
+        return np.concatenate((self.robot.get_state(), self.goal)), end, goal
 
     def get_state(self):
         """
@@ -263,7 +266,7 @@ class Environment:
         :param s_:
         :return:
         """
-        reward = -0.01 # self._dist_to_goal(s_[0, 0:2])/20
+        reward = -self._dist_to_goal(s_[0, 0:2])/20
         if self.is_collision(s_[0, 0:2]):
             reward -= 10
 

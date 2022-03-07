@@ -57,13 +57,14 @@ def plot_vector_field(env_params_file: str, env, agent):
     grid_free = np.ones((n, n), dtype=bool)
     # TODO: Predict in matrix form
     # Check points that fall inside obstacles
+    goal = np.array([0, 5])
     for i in range(n):
         for j in range(n):
             pos = np.array([xv[i, j], yv[i, j]])
             if not env.is_collision(pos):
                 # Calculate direction of arrow
-                dist = env.check_sensors(pos)
-                state = pos #np.concatenate((pos, dist))
+                # dist = env.check_sensors(pos)
+                state = np.concatenate((pos, goal))
                 action_idx = agent.act(state.reshape((1, -1)))
                 action = env.action_space[:, action_idx]
                 # action = env.sample_action().reshape((2,))
@@ -75,7 +76,9 @@ def plot_vector_field(env_params_file: str, env, agent):
                 #circle = plt.Circle((pos[0], pos[1]), radius=0.3, color='r')
                 #ax.add_patch(circle)
 
-    plt.show()
+    plt.show(block=False)
+    plt.pause(5)
+    plt.close()
 
 
 
