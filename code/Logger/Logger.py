@@ -9,6 +9,8 @@ from matplotlib import pyplot as plt
 import matplotlib
 matplotlib.use("TkAgg")
 
+from Utilities.plots import plot_vector_field
+
 
 class Logger:
     """
@@ -62,6 +64,12 @@ class Logger:
             csv_writer = writer(write_obj)
             csv_writer.writerow(["Episode", "Score_Mean", "Score_Median", "Score_std"])
 
+        # Create a directory for vector field plots
+        plots_dir = os.path.join(timedir, "Plots")
+        print(f"Creating 'Plots' directory at : {timedir}")
+        os.mkdir(plots_dir)
+        self.plots_dir = plots_dir
+
         # Create path for env parameters
         self.env_param_dir = os.path.join(timedir, self.env_param_name)
 
@@ -76,6 +84,15 @@ class Logger:
         with open(self.loss_dir, 'w', newline='') as write_obj:
             csv_writer = writer(write_obj)
             csv_writer.writerow(["Episode", "Loss"])
+
+    def log_vector_field(self, agent, goal, episode):
+        filename = f"Episode-{episode}.png"
+        file_path = os.path.join(self.plots_dir, filename)
+
+        env = agent.env
+        env_params = env.get_env_parameters()
+        plot_vector_field(env_params, env, agent, path=file_path, goal=goal, show=False)
+
 
     def log_eval(self, episode, score_mean, score_median, score_std):
         with open(self.evals_dir, 'a+', newline='') as write_obj:

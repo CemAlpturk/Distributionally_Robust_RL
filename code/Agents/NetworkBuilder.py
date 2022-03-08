@@ -48,7 +48,7 @@ class NetworkBuilder:
         NetworkBuilder._validate_network_parameters(network_parameters)
 
         optimizers = {
-            "adam": Adam(lr=0.01)  # TODO: make dynamic
+            "adam": Adam(lr=0.001)  # TODO: make dynamic
         }
         X_Input = Input(shape=network_parameters['input_shape'])
         X = X_Input

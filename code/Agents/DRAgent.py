@@ -111,7 +111,7 @@ class DRAgent:
                 if end:
                     break
 
-            self.Logger.log_loss(np.mean(self.episode_loss), ep)
+            # self.Logger.log_loss(np.mean(self.episode_loss), ep)
             self.episode_loss = []
             if goal:
                 print(
@@ -196,12 +196,19 @@ class DRAgent:
         """
 
         i = terminated == 0
-        targets = np.zeros((batch_size, self.num_actions))
-        # targets = self.q_network.predict(states)
+        # targets = np.zeros((batch_size, self.num_actions))
+        targets = self.q_network.predict(states)
         t = self.target_network.predict(next_states[i, :])
 
         targets[range(batch_size), actions] = rewards
-        targets[i, actions[i]] += discount * np.amax(t, axis=1)
+
+        # Debug print(f"targets: {targets.shape}") print(f"t: {t.shape}") print(f"i: {i.shape}") print(f"np.argmax(
+        # targets[i, :], axis=1): {np.argmax(targets[i, :], axis=1).shape}") print(f"t[:, np.argmax(targets,
+        # axis=1)[i]]: {t[np.arange(t.shape[0]), np.argmax(targets[i,:], axis=1)].shape}")
+
+        # Double DQN
+        targets[i, actions[i]] += discount * t[np.arange(t.shape[0]), np.argmax(targets[i, :], axis=1)]
+        # targets[i, actions[i]] += discount * np.amax(t, axis=1)
 
         return targets
 
@@ -269,7 +276,7 @@ class DRAgent:
         print(f"Evaluating Model for {n} runs")
         total_rewards = []
         states = []
-
+        goal = -1
         for play in tqdm(range(n)):
             state = self.env.reset(lamb)
             # goal = self.env.goal
@@ -292,7 +299,7 @@ class DRAgent:
                     states.append(x)
 
                     # dists.append(dist)
-
+                state = next_state
                 total_reward += reward
 
                 if end:
@@ -306,6 +313,7 @@ class DRAgent:
         # Log the recorded play
         self.Logger.log_episode(states, episode)
         self.Logger.log_eval(episode, average_reward, median_reward, std_reward)
+        self.Logger.log_vector_field(self, states[-1][2:4], episode)
 
     @staticmethod
     def _softmax(q):
