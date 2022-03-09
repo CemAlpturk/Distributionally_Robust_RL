@@ -156,6 +156,11 @@ class Memory:
         for i in range(sample_idxs.shape[0]):
             self.tree.update(sample_idxs[i], probs[i])
 
+        # Update max p
+        max_val = np.max(probs)
+        if max_val > self.max_p:
+            max_p = max_val
+
 
 def demonstrate_sampling(tree: SumTree):
     root_node = tree.root
