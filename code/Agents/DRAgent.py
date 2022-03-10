@@ -10,6 +10,7 @@ from .NetworkBuilder import NetworkBuilder
 from Logger.Logger import Logger
 from Utilities.Animator import Animator
 from Utilities import plots
+from .Memory import Memory
 
 
 HEADER = '\033[95m'
@@ -45,7 +46,8 @@ class DRAgent:
         self.actions = env.action_space
         self.num_actions = self.actions.shape[1]
 
-        self.experience = deque(maxlen=100)
+        # self.experience = deque(maxlen=100)
+        self.experience = Memory(size=100, state_size=self.num_states)
         self.Logger = Logger()
         self.episode_loss = []
 
@@ -105,7 +107,7 @@ class DRAgent:
                 state = next_state
                 steps = step + 1
 
-                if len(self.experience) >= batch_size:
+                if self.experience.num_elements >= batch_size:
                     self._experience_replay(batch_size, discount, 1)
 
                 if end:
@@ -158,12 +160,27 @@ class DRAgent:
         :param epochs:
         :return:
         """
-        minibatch = random.sample(self.experience, batch_size)
-        states, actions, rewards, next_states, terminated = self._extract_data(batch_size, minibatch)
-        targets = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
+        # minibatch = random.sample(self.experience, batch_size)
+        states, actions, rewards, next_states, terminated, sample_ps, sample_idx = self.experience.sample(batch_size)
 
-        history = self.q_network.fit(states, targets, epochs=epochs, verbose=0, batch_size=batch_size)
+        # Calculate weights for importance sampling
+        beta = 1  # fix
+        w = np.power((self.experience.size * sample_ps), -beta)
+        w = w / np.max(w)  # Normalize weights
+
+        # Build the targets
+        targets, ps_new = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
+
+        history = self.q_network.fit(states,
+                                     targets,
+                                     epochs=epochs,
+                                     verbose=0,
+                                     batch_size=batch_size,
+                                     sample_weight=w)
         self.episode_loss.append(history.history['loss'][0])
+
+        # Update priorities in memory
+        self.experience.update_probs(sample_idx, ps_new)
 
     def _extract_data(self, batch_size, minibatch):
         """
@@ -182,7 +199,15 @@ class DRAgent:
 
         return states, actions, rewards, next_states, terminated
 
-    def _build_targets(self, batch_size, states, next_states, rewards, actions, terminated, discount):
+    def _build_targets(
+            self,
+            batch_size,
+            states,
+            next_states,
+            rewards,
+            actions,
+            terminated,
+            discount):
         """
         TODO: Add summary
         :param batch_size:
@@ -198,6 +223,7 @@ class DRAgent:
         i = terminated == 0
         # targets = np.zeros((batch_size, self.num_actions))
         targets = self.q_network.predict(states)
+        preds = np.array(targets, copy=True)  # Copy the predictions
         t = self.target_network.predict(next_states[i, :])
 
         targets[range(batch_size), actions] = rewards
@@ -210,7 +236,11 @@ class DRAgent:
         targets[i, actions[i]] += discount * t[np.arange(t.shape[0]), np.argmax(targets[i, :], axis=1)]
         # targets[i, actions[i]] += discount * np.amax(t, axis=1)
 
-        return targets
+        # Compute TD-error and update the priorities
+        td_err = targets - preds
+        ps_new = np.linalg.norm(td_err, 1, axis=1)
+
+        return targets, ps_new
 
     def _store(self, state, action, reward, next_state, terminated):
         """
@@ -222,7 +252,7 @@ class DRAgent:
         :param terminated:
         :return:
         """
-        self.experience.append((state, action, reward, next_state, terminated))
+        self.experience.append(state, action, reward, next_state, terminated)
 
     def act(self, state, eps=-1.0, stoc=False):
         if eps > 0:

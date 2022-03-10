@@ -64,7 +64,7 @@ class SumTree:
         :return:
         """
         if node.is_leaf:
-            return node.idx
+            return node.value, node.idx
         if node.left.value >= value:
             return self.retrieve(value, node.left)
         else:
@@ -134,16 +134,18 @@ class Memory:
         :return:
         """
         sample_idxs = np.zeros(batch_size, dtype=int)
+        sample_probs = np.zeros(batch_size, dtype=float)
         for i in range(sample_idxs.shape[0]):
             maxval = self.tree.root.value
             rnd = np.random.uniform(0, maxval)
-            sample_idxs[i] = self.tree.retrieve(rnd, self.tree.root)
+            sample_probs[i], sample_idxs[i] = self.tree.retrieve(rnd, self.tree.root)
 
         return self.states[sample_idxs], \
                self.actions[sample_idxs], \
                self.rewards[sample_idxs], \
                self.next_states[sample_idxs], \
                self.terminated[sample_idxs], \
+               sample_probs, \
                sample_idxs
 
     def update_probs(self, sample_idxs, probs):
