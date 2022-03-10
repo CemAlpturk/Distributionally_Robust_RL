@@ -12,7 +12,6 @@ from Utilities.Animator import Animator
 from Utilities import plots
 from .Memory import Memory
 
-
 HEADER = '\033[95m'
 OKBLUE = '\033[94m'
 OKCYAN = '\033[96m'
@@ -75,6 +74,9 @@ class DRAgent:
             d_lamb=0.01,
             max_lamb=20,
             stochastic=False,
+            alpha=0.7,
+            beta0=0.5,
+            beta_max=1,
             render=False):
         """
         NOT COMPLETE!!!
@@ -83,6 +85,7 @@ class DRAgent:
 
         # path = self.Logger.env_param_dir
         # plots.plot_vector_field(path, self.env, self)
+        d_beta = (beta_max - beta0) / max_episodes
 
         for ep in range(1, max_episodes + 1):
             total_reward = 0
@@ -90,11 +93,12 @@ class DRAgent:
             state = self.env.reset(lamb).reshape(1, -1)
             goal = False
             # state = pos.reshape(1, -1)
+            beta = beta0 + d_beta
 
             # Begin episode
             for step in range(max_time_steps):
                 # print(state)
-                action_idx = self.act(state, exploration_rate)
+                action_idx = self.act(state, exploration_rate, stochastic)
                 action = self.actions[:, [action_idx]]
                 next_state, end, goal = self.env.step(action)
                 next_state = next_state.reshape(1, -1)
@@ -108,7 +112,7 @@ class DRAgent:
                 steps = step + 1
 
                 if self.experience.num_elements >= batch_size:
-                    self._experience_replay(batch_size, discount, 1)
+                    self._experience_replay(batch_size, alpha, beta, discount, 1)
 
                 if end:
                     break
@@ -151,8 +155,7 @@ class DRAgent:
                     path = self.Logger.env_param_dir
                     plots.plot_vector_field(path, self.env, self)
 
-
-    def _experience_replay(self, batch_size, discount=0.9, epochs=1):
+    def _experience_replay(self, batch_size, alpha, beta, discount=0.9, epochs=1, ):
         """
         TODO: Add summary
         :param batch_size:
@@ -164,7 +167,7 @@ class DRAgent:
         states, actions, rewards, next_states, terminated, sample_ps, sample_idx = self.experience.sample(batch_size)
 
         # Calculate weights for importance sampling
-        beta = 1  # fix
+
         w = np.power((self.experience.size * sample_ps), -beta)
         w = w / np.max(w)  # Normalize weights
 
@@ -180,7 +183,7 @@ class DRAgent:
         self.episode_loss.append(history.history['loss'][0])
 
         # Update priorities in memory
-        self.experience.update_probs(sample_idx, ps_new)
+        self.experience.update_probs(sample_idx, np.power(ps_new, alpha))
 
     def _extract_data(self, batch_size, minibatch):
         """
@@ -353,6 +356,3 @@ class DRAgent:
         probs = exp / exp_sum
 
         return probs
-
-
-

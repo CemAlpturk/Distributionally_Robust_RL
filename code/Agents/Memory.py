@@ -75,6 +75,7 @@ class SumTree:
         change = new_value - node.value
         node.value = new_value
         self.propagate_changes(change, node.parent)
+        return change
 
     def propagate_changes(self, change: float, node: Node):
         node.value += change
@@ -101,6 +102,7 @@ class Memory:
         self.idx = 0  # Current empty slot
         self.num_elements = 0
         self.max_p = 1  # Initial condition
+        self.p_sum = 0
 
         self.tree = SumTree(self.ps)
 
@@ -120,10 +122,12 @@ class Memory:
         self.next_states[self.idx] = next_state
         self.terminated[self.idx] = terminated
         self.ps[self.idx] = self.max_p
-        self.tree.update(self.idx, self.max_p)  # Update probability in SumTree
+        change = self.tree.update(self.idx, self.max_p)  # Update probability in SumTree
 
         if self.num_elements < self.size:
             self.num_elements += 1
+
+        self.p_sum += change
 
         self.idx = (self.idx + 1) % self.size  # Update index to next available position
 
@@ -134,7 +138,7 @@ class Memory:
         :return:
         """
         sample_idxs = np.zeros(batch_size, dtype=int)
-        sample_probs = np.zeros(batch_size, dtype=float)
+        sample_probs = np.zeros(batch_size, dtype=float) / self.p_sum
         for i in range(sample_idxs.shape[0]):
             maxval = self.tree.root.value
             rnd = np.random.uniform(0, maxval)
@@ -155,8 +159,11 @@ class Memory:
         :param sample_idxs:
         :return:
         """
+        change = 0
         for i in range(sample_idxs.shape[0]):
-            self.tree.update(sample_idxs[i], probs[i])
+            change += self.tree.update(sample_idxs[i], probs[i])
+
+        self.p_sum += change
 
         # Update max p
         max_val = np.max(probs)
