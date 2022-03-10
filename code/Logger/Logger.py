@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 import matplotlib
 matplotlib.use("TkAgg")
 
-from Utilities.plots import plot_vector_field
+from Utilities.plots import plot_vector_field, animate_vector_field
 
 
 class Logger:
@@ -105,6 +105,13 @@ class Logger:
         env = agent.env
         env_params = env.get_env_parameters()
         plot_vector_field(env_params, env, agent, path=file_path, goal=goal, show=False)
+
+    def log_vector_field_animation(self, agent, episode):
+
+        env = agent.env
+        env_params = env.get_env_parameters()
+        animate_vector_field(env_params, env, agent, self.plots_dir, episode)
+
 
 
     def log_eval(self, episode, score_mean, score_median, score_std):

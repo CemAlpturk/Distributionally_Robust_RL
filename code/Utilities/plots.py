@@ -8,6 +8,9 @@ import json
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+import imageio
+import shutil
+from tqdm import tqdm
 
 
 def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
@@ -75,22 +78,64 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
                 action_idx = agent.act(state.reshape((1, -1)))
                 action = env.action_space[:, action_idx]
                 # action = env.sample_action().reshape((2,))
-                dx = action[0]/d_x
-                dy = action[1]/d_y
+                dx = action[0] / d_x
+                dy = action[1] / d_y
                 # Plot arrow
                 arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.15)
                 ax.add_patch(arrow)
-                #circle = plt.Circle((pos[0], pos[1]), radius=0.3, color='r')
-                #ax.add_patch(circle)
+                # circle = plt.Circle((pos[0], pos[1]), radius=0.3, color='r')
+                # ax.add_patch(circle)
 
     if path is not None:
         plt.savefig(path)
     if show:
         plt.show()
 
-
     plt.close()
 
 
+def animate_vector_field(params, env, agent, path, episode, steps=30, show=False):
+    """
+    TODO: Add summary
+    :param params:
+    :param env:
+    :param agent:
+    :param steps:
+    :param path:
+    :param show:
+    :return:
+    """
+    # Create temp dir for images
+    tmp_dir = os.path.join(path, "tmp")
+    os.mkdir(tmp_dir)
 
+    radius = params["goal_radius"]
+    goal_y = params["y_lims"][1] - radius
 
+    x_start = params["x_lims"][0] + radius
+    x_stop = params["x_lims"][1] - radius
+    step_size = (x_stop - x_start) / steps
+    goal_x = np.arange(x_start, x_stop, step_size)
+
+    print(f"Generating animation for {steps} steps")
+    for i in tqdm(range(steps)):
+        # Move goal from top left to top right
+        goal = np.array([goal_x[i], goal_y])
+
+        filename = f"im_{i}.png"
+        filepath = os.path.join(tmp_dir, filename)
+
+        # Plot images
+        plot_vector_field(params, env, agent, path=filepath, goal=goal, show=False)
+
+    # Generate gif from tmp dir
+    images = []
+    for i in range(steps):
+        filepath = os.path.join(tmp_dir, f"im_{i}.png")
+        images.append(imageio.imread(filepath))
+
+    gif_path = os.path.join(path, f"Episode-{episode}.gif")
+    imageio.mimsave(gif_path, images)
+
+    # Delete tmp dir
+    shutil.rmtree(tmp_dir)

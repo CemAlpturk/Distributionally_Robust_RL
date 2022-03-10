@@ -89,7 +89,8 @@ class DRAgent:
             alpha=0.7,
             beta0=0.5,
             beta_max=1,
-            render=False):
+            render=False,
+            save_animation_period=1000):
         """
         NOT COMPLETE!!!
         :return: None
@@ -117,6 +118,7 @@ class DRAgent:
             "alpha": alpha,
             "beta0": beta0,
             "beta_max": beta_max,
+            "save_animation_period": save_animation_period
         }
 
         self.params.update(params)
@@ -205,6 +207,9 @@ class DRAgent:
 
                     path = self.Logger.env_param_dir
                     plots.plot_vector_field(path, self.env, self)
+
+            if ep % save_animation_period == 0:
+                self.Logger.log_vector_field_animation(self, ep)
 
     def _experience_replay(self, batch_size, alpha, beta, discount=0.9, epochs=1, ):
         """
@@ -429,6 +434,7 @@ class DRAgent:
         self.Logger.log_episode(states, episode)
         self.Logger.log_eval(episode, average_reward, median_reward, std_reward)
         self.Logger.log_vector_field(self, states[-1][2:4], episode)
+
         return average_reward
 
     @staticmethod
