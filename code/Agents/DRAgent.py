@@ -28,7 +28,10 @@ class DRAgent:
     
     """
 
-    def __init__(self, network_parameters: dict, env):
+    def __init__(self,
+                 network_parameters: dict,
+                 env,
+                 memory: int = 2000):
         """
         Class Constructor
         """
@@ -59,6 +62,11 @@ class DRAgent:
 
         self.best_score = -float('inf')
 
+        self.params = {
+            "memory": memory,
+        }
+        self.params.update(network_parameters)
+
     def train(
             self,
             max_episodes: int,
@@ -86,6 +94,32 @@ class DRAgent:
         NOT COMPLETE!!!
         :return: None
         """
+
+        # Log training parameters
+        params = {
+            "max_episodes": max_episodes,
+            "exploration_rate": exploration_rate,
+            "discount": discount,
+            "batch_size": batch_size,
+            "max_time_steps": max_time_steps,
+            "warm_start": warm_start,
+            "best": best,
+            "timedir": timedir,
+            "model_allignment_period": model_allignment_period,
+            "evaluate_model_period": evaluate_model_period,
+            "evaluation_size": evaluation_size,
+            "exploration_rate_decay": exploration_rate_decay,
+            "min_exploration_rate": min_exploration_rate,
+            "lamb": lamb,
+            "d_lamb": d_lamb,
+            "max_lamb": max_lamb,
+            "stochastic": stochastic,
+            "alpha": alpha,
+            "beta0": beta0,
+            "beta_max": beta_max,
+        }
+
+        self.params.update(params)
 
         # path = self.Logger.env_param_dir
         # plots.plot_vector_field(path, self.env, self)

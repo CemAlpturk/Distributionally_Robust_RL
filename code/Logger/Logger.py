@@ -122,6 +122,17 @@ class Logger:
         fig.savefig(fig_dir)
         plt.close(fig)
 
+    def log_params(self, params: dict):
+        """
+        TODO: Add summary
+        :param params:
+        :return:
+        """
+        filename = "train_params.txt"
+        path = os.path.join(self.dir, filename)
+        with open(path, 'w', newline='') as file:
+            print(params, file=file)
+
     def log_loss(self, loss, episode):
         """
         Appends average loss score for each episode to the appropriate file
