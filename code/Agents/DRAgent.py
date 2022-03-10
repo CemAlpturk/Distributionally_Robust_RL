@@ -57,6 +57,8 @@ class DRAgent:
         # self.target_network = NetworkBuilder.build(network_parameters)
         self._align_target_model()
 
+        self.best_score = -float('inf')
+
     def train(
             self,
             max_episodes: int,
@@ -146,7 +148,12 @@ class DRAgent:
                 self._align_target_model()
 
             if ep % evaluate_model_period == 0:
-                self._evaluate(evaluation_size, max_time_steps, ep, lamb)
+                eval_score = self._evaluate(evaluation_size, max_time_steps, ep, lamb)
+                if eval_score > self.best_score:
+                    self._save_model("best")
+                    self.best_score = eval_score 
+
+                self._save_model("latest")
                 if render:
                     dir = self.Logger.ep_dir
                     path = os.path.join(dir, f"Episode_{ep}.csv")
@@ -298,6 +305,15 @@ class DRAgent:
     def _align_target_model(self):
         self.target_network.set_weights(self.q_network.get_weights())
 
+    def _save_model(self, prefix: str):
+        """
+        Save model
+        :return:
+        """
+        print(f"Saving Model '{prefix}'")
+        filepath = os.path.join(self.Logger.timedir, f"{prefix}/q_network")
+        self.q_network.save(filepath)
+
     def _evaluate(self, n, max_steps, episode, lamb):
         """
         TODO: Add summary
@@ -347,6 +363,7 @@ class DRAgent:
         self.Logger.log_episode(states, episode)
         self.Logger.log_eval(episode, average_reward, median_reward, std_reward)
         self.Logger.log_vector_field(self, states[-1][2:4], episode)
+        return average_reward
 
     @staticmethod
     def _softmax(q):

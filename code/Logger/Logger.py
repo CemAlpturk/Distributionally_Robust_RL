@@ -27,8 +27,11 @@ class Logger:
         self.network_param_name = "network_params.json"
         self.evals_file_name = "evals.csv"
         self.loss_file_name = "loss.csv"
+        self.dir = None
+        self.timedir = None
         self._init_directory()
         self.env_params = None
+
 
     def _init_directory(self):
         """
@@ -44,10 +47,13 @@ class Logger:
             print(f"Creating 'Logs' directory at: {parent_dir}")
             os.mkdir(path)
 
+        self.dir = path
+
         # Create directory with timestamp
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         timedir = os.path.join(path, timestamp)
         os.mkdir(timedir)
+        self.timedir = timedir
 
         # Create directory for episodes
         ep_dir = os.path.join(timedir, "Episodes")
