@@ -43,15 +43,9 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
         ax.grid()
         ax.set_axisbelow(True)
 
-    obstacles = []
-    for obs in params['obstacles'].values():
-        rectangle = plt.Rectangle(obs['coord'],
-                                  obs['width'],
-                                  obs['height'])
-        ax.add_patch(rectangle)
-        obstacles.append(rectangle)
 
-    ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))
+
+
 
     # Create grid
     nx = 20  # int(params['x_lims'][1] - params['x_lims'][0])   # number of points n^2
@@ -68,23 +62,54 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
     # Check points that fall inside obstacles
     if goal is None:
         goal = np.array([0, 5])
+
+    # Put the states in matrix form
+    states = np.zeros((nx*ny, 4), dtype=float)
     for i in range(nx):
         for j in range(ny):
             pos = np.array([xv[i, j], yv[i, j]])
-            if not env.is_collision(pos):
-                # Calculate direction of arrow
-                # dist = env.check_sensors(pos)
-                state = np.concatenate((pos, goal))
-                action_idx = agent.act(state.reshape((1, -1)))
-                action = env.action_space[:, action_idx]
-                # action = env.sample_action().reshape((2,))
-                dx = action[0] / d_x
-                dy = action[1] / d_y
-                # Plot arrow
-                arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.15)
-                ax.add_patch(arrow)
-                # circle = plt.Circle((pos[0], pos[1]), radius=0.3, color='r')
-                # ax.add_patch(circle)
+            states[i*ny + j] = np.concatenate((pos, goal))
+
+    # Predict in batch form
+    actions = agent.batch_action(states)
+
+    for i in range(nx*ny):
+        pos = states[i, 0:2]
+        action = env.action_space[:, actions[i]]
+        dx = action[0] / d_x
+        dy = action[1] / d_y
+
+        arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.15)
+        ax.add_patch(arrow)
+
+    ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))
+    obstacles = []
+    for obs in params['obstacles'].values():
+        rectangle = plt.Rectangle(obs['coord'],
+                                  obs['width'],
+                                  obs['height'])
+        ax.add_patch(rectangle)
+        obstacles.append(rectangle)
+
+
+
+    # for i in range(nx):
+    #     for j in range(ny):
+    #         pos = np.array([xv[i, j], yv[i, j]])
+    #         if not env.is_collision(pos):
+    #             # Calculate direction of arrow
+    #             # dist = env.check_sensors(pos)
+    #             state = np.concatenate((pos, goal))
+    #             action_idx = agent.act(state.reshape((1, -1)))
+    #             action = env.action_space[:, action_idx]
+    #             # action = env.sample_action().reshape((2,))
+    #             dx = action[0] / d_x
+    #             dy = action[1] / d_y
+    #             # Plot arrow
+    #             arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.15)
+    #             ax.add_patch(arrow)
+    #             # circle = plt.Circle((pos[0], pos[1]), radius=0.3, color='r')
+    #             # ax.add_patch(circle)
 
     if path is not None:
         plt.savefig(path)

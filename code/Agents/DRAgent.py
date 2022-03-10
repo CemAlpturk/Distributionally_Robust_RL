@@ -330,6 +330,16 @@ class DRAgent:
             action = np.argmax(q_values[0])
         return action
 
+    def batch_action(self, states):
+        """
+        TODO: Add summary
+        :param states:
+        :return:
+        """
+        q_values = self.q_network.predict(states)
+        actions = np.argmax(q_values, axis=1)
+        return actions
+
     def set_state_lims(self, lims):
         """
         Get state limits so that states can be normalized between [-1 1]
