@@ -10,8 +10,6 @@ from matplotlib.patches import PathPatch
 import matplotlib.animation as animation
 
 
-# For displaying animations in PyCharm
-matplotlib.use("TkAgg")
 
 
 class Animator:

@@ -7,7 +7,7 @@ from csv import writer
 import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib
-matplotlib.use("TkAgg")
+
 
 from Utilities.plots import plot_vector_field, animate_vector_field
 
