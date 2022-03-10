@@ -29,6 +29,7 @@ class Logger:
         self.loss_file_name = "loss.csv"
         self.dir = None
         self.timedir = None
+        self.model_dir = None
         self._init_directory()
         self.env_params = None
 
@@ -60,6 +61,12 @@ class Logger:
         print(f"Creating 'Episodes' directory at: {timedir}")
         os.mkdir(ep_dir)
         self.ep_dir = ep_dir
+
+        # Create directory for models
+        model_dir = os.path.join(timedir, "Models")
+        print(f"Creating 'Models' directory at: {timedir}")
+        os.mkdir(model_dir)
+        self.model_dir = model_dir
 
         # Create a directory for evaluation scores
         eval_dir = os.path.join(timedir, "Evaluation")

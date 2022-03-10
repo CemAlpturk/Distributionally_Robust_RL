@@ -67,6 +67,8 @@ class DRAgent:
             batch_size=32,
             max_time_steps=100,
             warm_start=False,
+            best=False,
+            timedir=None,
             model_allignment_period=100,
             evaluate_model_period=50,
             evaluation_size=10,
@@ -88,6 +90,14 @@ class DRAgent:
         # path = self.Logger.env_param_dir
         # plots.plot_vector_field(path, self.env, self)
         d_beta = (beta_max - beta0) / max_episodes
+
+        if warm_start:
+            if timedir is None:
+                print("No 'timedir' is given, using default network")
+            else:
+                check = self._load_model(timedir, best)
+                if not check:
+                    print("Using default network")
 
         for ep in range(1, max_episodes + 1):
             total_reward = 0
@@ -151,7 +161,7 @@ class DRAgent:
                 eval_score = self._evaluate(evaluation_size, max_time_steps, ep, lamb)
                 if eval_score > self.best_score:
                     self._save_model("best")
-                    self.best_score = eval_score 
+                    self.best_score = eval_score
 
                 self._save_model("latest")
                 if render:
@@ -311,8 +321,30 @@ class DRAgent:
         :return:
         """
         print(f"Saving Model '{prefix}'")
-        filepath = os.path.join(self.Logger.timedir, f"{prefix}/q_network")
+        filepath = os.path.join(self.Logger.model_dir, f"{prefix}/q_network")
         self.q_network.save(filepath)
+
+    def _load_model(self, timedir: str, best: bool = False):
+        """
+        Load Existing model from timedir
+        :param timedir: str
+        :return: bool
+        """
+        if best:
+            filepath = f"Logs/{timedir}/Models/best/q_network"
+        else:
+            filepath = f"Logs/{timedir}/Models/latest/q_network"
+
+        # Check if model exists in default directory
+        if os.path.exists(filepath):
+            self.q_network = NetworkBuilder.load_model(filepath)
+            self.target_network = NetworkBuilder.load_model(filepath)
+            print("Models loaded")
+            return True
+        else:
+            print(f"'{filepath}' not found")
+            return False
+
 
     def _evaluate(self, n, max_steps, episode, lamb):
         """

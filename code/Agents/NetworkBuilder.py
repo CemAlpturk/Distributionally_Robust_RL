@@ -4,6 +4,7 @@ from tensorflow.keras import Sequential
 from tensorflow.keras.models import Model
 # noinspection PyUnresolvedReferences
 from tensorflow.keras.layers import Dense, Lambda, Input, Add
+from tensorflow.keras.models import load_model
 
 
 # noinspection PyUnresolvedReferences
@@ -91,7 +92,7 @@ class NetworkBuilder:
         assert 'optimizer' in network_parameters, "Missing key 'optimizer' in network parameters"
 
     @staticmethod
-    def _load_model(filepath):
+    def load_model(filepath):
         """
         Loads preexisting model
         """
