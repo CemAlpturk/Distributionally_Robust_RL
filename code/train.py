@@ -21,9 +21,10 @@ def custom_loss_function(y_true, y_pred):
 
 
 network_parameters = {
-    "input_shape": (4,),
+    "input_shape": (6,),
     "layers": [(512, 'relu'), (512, 'relu')],
     "optimizer": "adam",
+    "learning_rate": 0.001,
     "loss_function": "mse",
     # "loss_function": custom_loss_function,
     "initializer": tf.keras.initializers.he_uniform(),
@@ -34,22 +35,25 @@ network_parameters = {
 agent = DRAgent(network_parameters, env)
 # agent.set_state_lims(env.get_state_lims())
 agent.train(
-    max_episodes=100000,
+    max_episodes=10000,
     exploration_rate=1.0,
     exploration_rate_decay=0.999,
     min_exploration_rate=0.1,
-    stochastic=False,
+    stochastic=True,
     discount=0.9,
     batch_size=32,
-    max_time_steps=30,
+    max_time_steps=50,
     warm_start=False,
+    best=False,
+    timedir='2022-03-10_20-40-56',
     model_allignment_period=100,
-    evaluate_model_period=100,
-    evaluation_size=10,
+    evaluate_model_period=500,
+    evaluation_size=20,
     lamb=5,
     d_lamb=0.01,
     max_lamb=20,
-    render=False
+    render=False,
+    save_animation_period=1000
 )
 
 # path = agent.Logger.env_param_dir

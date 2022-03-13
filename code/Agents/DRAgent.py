@@ -49,7 +49,7 @@ class DRAgent:
         self.num_actions = self.actions.shape[1]
 
         # self.experience = deque(maxlen=100)
-        self.experience = Memory(size=100, state_size=self.num_states)
+        self.experience = Memory(size=memory, state_size=self.num_states)
         self.Logger = Logger()
         self.episode_loss = []
 
@@ -140,6 +140,7 @@ class DRAgent:
             steps = 0
             state = self.env.reset(lamb).reshape(1, -1)
             goal = False
+            col = False
             # state = pos.reshape(1, -1)
             beta = beta0 + d_beta
 
@@ -148,7 +149,7 @@ class DRAgent:
                 # print(state)
                 action_idx = self.act(state, exploration_rate, stochastic)
                 action = self.actions[:, [action_idx]]
-                next_state, end, goal = self.env.step(action)
+                next_state, end, goal, col = self.env.step(action)
                 next_state = next_state.reshape(1, -1)
                 reward = self.env.reward(next_state)
 
@@ -172,16 +173,25 @@ class DRAgent:
                     OKGREEN + f"Episode: {ep:>5}, " + ENDC +
                     OKGREEN + f"Score: {total_reward:>10.1f}, " + ENDC +
                     OKGREEN + f"Steps: {steps:>4}, " + ENDC +
-                    OKGREEN + f"Eps: {exploration_rate:>0.2f}, " + ENDC +
-                    OKGREEN + f"Lambda: {lamb:>0.1f}" + ENDC
+                    OKGREEN + f"Eps: {exploration_rate:>0.2f}, " + ENDC
+                    # OKGREEN + f"Lambda: {lamb:>0.1f}" + ENDC
                 )
+            elif col:
+                print(
+                    FAIL + f"Episode: {ep:>5}, " + ENDC +
+                    FAIL + f"Score: {total_reward:>10.1f}, " + ENDC +
+                    FAIL + f"Steps: {steps:>4}, " + ENDC +
+                    FAIL + f"Eps: {exploration_rate:>0.2f}, " + ENDC
+                    # FAIL + f"Lambda: {lamb:>0.1f}" + ENDC
+                )
+
             else:
                 print(
                     f"Episode: {ep:>5}, "
                     f"Score: {total_reward:>10.1f}, "
                     f"Steps: {steps:>4}, "
                     f"Eps: {exploration_rate:>0.2f}, "
-                    f"Lambda: {lamb:>0.1f}"
+                    # f"Lambda: {lamb:>0.1f}"
                 )
 
             if exploration_rate > min_exploration_rate:
@@ -316,7 +326,7 @@ class DRAgent:
     def act(self, state, eps=-1.0, stoc=False):
         if eps > 0:
             if np.random.rand() < eps:
-                action = np.random.choice(range(4))
+                action = np.random.choice(range(self.num_actions))
                 return action
         if self.normalize:
             state = self._normalize_states(state)
@@ -325,7 +335,7 @@ class DRAgent:
             # Apply softmax
             probs = self._softmax(q_values)[0]
             # Sample action
-            action = np.random.choice(list(range(4)), p=probs)
+            action = np.random.choice(list(range(self.num_actions)), p=probs)
         else:
             action = np.argmax(q_values[0])
         return action
@@ -420,7 +430,7 @@ class DRAgent:
                 action_idx = self.act(state, eps=-1, stoc=False)
                 action = self.actions[:, [action_idx]]
 
-                x, end, goal = self.env.step(action)
+                x, end, goal, col = self.env.step(action)
                 next_state = x.reshape(1, -1)
                 reward = self.env.reward(next_state)
 

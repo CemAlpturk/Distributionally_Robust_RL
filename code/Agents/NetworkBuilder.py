@@ -26,7 +26,7 @@ class NetworkBuilder:
         NetworkBuilder._validate_network_parameters(network_parameters)
 
         optimizers = {
-            "adam": Adam(lr=0.01)
+            "adam": Adam(lr=network_parameters["learning_rate"])
         }
 
         model = Sequential()
@@ -49,7 +49,7 @@ class NetworkBuilder:
         NetworkBuilder._validate_network_parameters(network_parameters)
 
         optimizers = {
-            "adam": Adam(lr=0.001)  # TODO: make dynamic
+            "adam": Adam(lr=network_parameters["learning_rate"])
         }
         X_Input = Input(shape=network_parameters['input_shape'])
         X = X_Input

@@ -2,6 +2,18 @@ import numpy as np
 import random
 
 
+class Obstacle_Circle:
+    def __init__(self, center, radius: float):
+        """
+        TODO: Add summary
+        :param center:
+        :param radius:
+        """
+        self.center = center
+        self.radius = radius
+        self.static = True
+
+
 class Obstacle:
     """
     Class definition for the rectangular obstacles

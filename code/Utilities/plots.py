@@ -16,6 +16,10 @@ from tqdm import tqdm
 def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
     """
     Plots a vector field containing the actions for a grid
+    :param show:
+    :param goal:
+    :param path:
+    :param params:
     :param env_params_file: string
     :param env: Environment object
     :param agent: Agent object
@@ -57,18 +61,16 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
     d_x = params['x_lims'][1] - params['x_lims'][0]
     d_y = params['y_lims'][1] - params['y_lims'][0]
 
-    # grid_free = np.ones((nx, ny), dtype=bool)
-    # TODO: Predict in matrix form
     # Check points that fall inside obstacles
     if goal is None:
         goal = np.array([0, 5])
 
     # Put the states in matrix form
-    states = np.zeros((nx*ny, 4), dtype=float)
+    states = np.zeros((nx*ny, len(params['states'])), dtype=float)
     for i in range(nx):
         for j in range(ny):
             pos = np.array([xv[i, j], yv[i, j]])
-            states[i*ny + j] = np.concatenate((pos, goal))
+            states[i*ny + j] = env.gen_state(pos, goal)
 
     # Predict in batch form
     actions = agent.batch_action(states)
@@ -85,31 +87,12 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
     ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))
     obstacles = []
     for obs in params['obstacles'].values():
-        rectangle = plt.Rectangle(obs['coord'],
-                                  obs['width'],
-                                  obs['height'])
-        ax.add_patch(rectangle)
-        obstacles.append(rectangle)
-
-
-
-    # for i in range(nx):
-    #     for j in range(ny):
-    #         pos = np.array([xv[i, j], yv[i, j]])
-    #         if not env.is_collision(pos):
-    #             # Calculate direction of arrow
-    #             # dist = env.check_sensors(pos)
-    #             state = np.concatenate((pos, goal))
-    #             action_idx = agent.act(state.reshape((1, -1)))
-    #             action = env.action_space[:, action_idx]
-    #             # action = env.sample_action().reshape((2,))
-    #             dx = action[0] / d_x
-    #             dy = action[1] / d_y
-    #             # Plot arrow
-    #             arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.15)
-    #             ax.add_patch(arrow)
-    #             # circle = plt.Circle((pos[0], pos[1]), radius=0.3, color='r')
-    #             # ax.add_patch(circle)
+        circ = plt.Circle(obs["center"],
+                          radius=obs["radius"],
+                          facecolor='r',
+                          edgecolor='k')
+        ax.add_patch(circ)
+        obstacles.append(circ)
 
     if path is not None:
         plt.savefig(path)

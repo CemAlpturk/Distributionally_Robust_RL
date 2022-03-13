@@ -1,7 +1,7 @@
 import random
 import numpy as np
 from .Robot import Robot
-from .Obstacle import Obstacle
+from .Obstacle import Obstacle, Obstacle_Circle
 
 
 class Environment:
@@ -9,7 +9,10 @@ class Environment:
     Environment class
     """
 
-    def __init__(self, mean=np.zeros(2), cov=0*np.identity(2)):
+    def __init__(self,
+                 action_space=None,
+                 mean=np.zeros(2),
+                 cov=0*np.identity(2)):
         """
         Constructor for the Map class
         """
@@ -33,15 +36,19 @@ class Environment:
         self.edges = [upper_right, lower_right, lower_left, upper_left]
 
         self.robot = Robot()
-        self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
+        if action_space is None:
+            self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
+        else:
+            self.action_space = action_space
         self.action_shape = (self.action_space.shape[1], 1)
-        obs_h = 2
-        obs_w = 10
-        # pos_range = [[-20, 20], [-20, 20]]
-        cord = [-5, 10]
 
-        self.num_obstacles = 0
-        self.obstacles = []
+        # Obstacles
+        # obs_h = 2
+        # obs_w = 10
+        # # pos_range = [[-20, 20], [-20, 20]]
+        # cord = [-5, 10]
+
+
 
         self.state_size = 2 + self.robot.num_sensors + 2
 
@@ -52,10 +59,15 @@ class Environment:
         self.goal = None
         self.goal_radius = 2
 
+        self.num_obstacles = 2
+        self.obstacles = []
 
+        radius = 2
+        self.obstacles.append(Obstacle_Circle(center=[-5, 0], radius=radius))
+        self.obstacles.append(Obstacle_Circle(center=[5, 0], radius=radius))
 
-        for k in range(self.num_obstacles):
-            self.obstacles.append(Obstacle(cord=cord, width=obs_w, height=obs_h))
+        # for k in range(self.num_obstacles):
+            # self.obstacles.append(Obstacle(cord=cord, width=obs_w, height=obs_h))
             # self.obstacles[k].randomize(lim_center=pos_range)
 
     def reset(self, lamb=20):
@@ -70,7 +82,7 @@ class Environment:
         self.robot.set_state(static_state)
 
         # self.goal = np.array([0,15])
-
+        # TODO: Generate goal based on obstacle positions
         # # distance between pos and goal at most lambda
         goal_min = [self.x_min, self.y_min]
         goal_max = [self.x_max, self.y_max]
@@ -85,7 +97,8 @@ class Environment:
         self.goal = goal
 
         #return self.robot.get_state(), self.check_sensors()
-        return np.concatenate((self.robot.get_state(), self.goal))
+        dists = self.get_dists()
+        return np.concatenate((self.robot.get_state(), self.goal, dists))
 
     def get_env_parameters(self):
         """
@@ -105,19 +118,23 @@ class Environment:
             "num_sensors": self.robot.num_sensors,
             "sensor_angles": self.robot.sensor_angles.tolist(),
             "goal_radius": self.goal_radius,
-            "states": ['pos_x', 'pos_y', 'goal_x', 'goal_y'],
+            "states": ['pos_x', 'pos_y', 'goal_x', 'goal_y', 'dist_1', 'dist_2'],
             "pos_idx": [0, 1],
-            "goal_idx": [2, 3]
+            "goal_idx": [2, 3],
+            "dist_idx": [4, 5]
         }
 
         # add obstacles to params
         for idx, obs in enumerate(self.obstacles):
             params['obstacles'][idx] = {
-                "coord": obs.cord,
-                "width": obs.width,
-                "height": obs.height,
-                "vertices": obs.edges,
+                "center": obs.center,
+                "radius": obs.radius,
                 "static": obs.static
+                # "coord": obs.cord,
+                # "width": obs.width,
+                # "height": obs.height,
+                # "vertices": obs.edges,
+                # "static": obs.static
             }
         return params
 
@@ -158,18 +175,43 @@ class Environment:
         col = self.is_collision()
         goal = self.reached_goal()
         end = col or goal
-        # dist = self.check_sensors()
+        dist = self.get_dists()
 
-        return np.concatenate((self.robot.get_state(), self.goal)), end, goal
+        return np.concatenate((self.robot.get_state(), self.goal, dist)), end, goal, col
 
-    def get_state(self):
+    # def get_state(self):
+    #     """
+    #     TODO: Return the environments own state s instead of robot state x
+    #     Returns the state of the environment
+    #     :return: Numpy array with shape (2,1)
+    #     """
+    #
+    #     return self.robot.get_state(), self.check_sensors()
+
+    def get_dists(self, pos=None):
         """
-        TODO: Return the environments own state s instead of robot state x
-        Returns the state of the environment
-        :return: Numpy array with shape (2,1)
+        TODO: Add summary
+        :param pos:
+        :return:
         """
+        if pos is None:
+            pos = self.robot.get_state()
 
-        return self.robot.get_state(), self.check_sensors()
+        dists = np.zeros(self.num_obstacles, dtype=float)
+        for i in range(self.num_obstacles):
+            dist = np.linalg.norm(pos - self.obstacles[i].center, 2)
+            dists[i] = dist - self.obstacles[i].radius
+        return np.array(dists)
+
+    def gen_state(self, pos, goal):
+        """
+        TODO: Add summary
+        :param pos:
+        :param goal:
+        :return:
+        """
+        dists = self.get_dists(pos)
+        return np.concatenate((pos, goal, dists))
 
     def reached_goal(self, pos=None):
         """
@@ -189,56 +231,60 @@ class Environment:
         """
         if pos is None:
             pos = self.robot.get_state().reshape((2,))
-        for obs in self.obstacles:
-            # Check distances to obstacles
-            d, _ = obs.closest_dist(pos)
+        # for obs in self.obstacles:
+        #     # Check distances to obstacles
+        #     d, _ = obs.closest_dist(pos)
+        #
+        #     if d <= self.robot.radius:
+        #         return True
+        #
+        #     # Check if the robot is inside the obstacle (necessary?)
+        #     if obs.edges[3][0] <= pos[0] <= obs.edges[0][0] and \
+        #             obs.edges[1][1] <= pos[1] <= obs.edges[0][1]:
+        #         return True
 
-            if d <= self.robot.radius:
-                return True
-
-            # Check if the robot is inside the obstacle (necessary?)
-            if obs.edges[3][0] <= pos[0] <= obs.edges[0][0] and \
-                    obs.edges[1][1] <= pos[1] <= obs.edges[0][1]:
-                return True
+        dists = self.get_dists(pos)
+        if np.sum(dists <= 0.0) > 0:
+            return True
 
         return not self.is_inside(pos)
 
-    def check_sensors(self, p=None):
-        """
-        For each sensor check the distance to the closest obstacle in its direction
-        :return: distances
-        """
-
-        if p is None:
-            p = self.robot.get_state()
-
-        dist = []
-
-        for i in range(self.robot.num_sensors):
-            d = float("inf")
-
-            theta = self.robot.sensor_angles[i]
-            r = np.array([np.cos(theta), np.sin(theta)])
-
-            # Check distance to borders
-            for j in range(4):
-                q = np.array(self.edges[j])
-                s = np.array(self.edges[(j + 1) % 4]) - q
-                di = self._intersection(p, q, s, theta)
-                if di < d:
-                    d = di
-
-            # Check distance to obstacles
-            for obs in self.obstacles:
-                num_edges = len(obs.edges)
-                for j in range(num_edges):
-                    q = np.array(obs.edges[j])
-                    s = np.array(obs.edges[(j + 1) % num_edges]) - q
-                    di = self._intersection(p, q, s, theta)
-                    if di < d:
-                        d = di
-            dist.append(d)
-        return np.array(dist)
+    # def check_sensors(self, p=None):
+    #     """
+    #     For each sensor check the distance to the closest obstacle in its direction
+    #     :return: distances
+    #     """
+    #
+    #     if p is None:
+    #         p = self.robot.get_state()
+    #
+    #     dist = []
+    #
+    #     for i in range(self.robot.num_sensors):
+    #         d = float("inf")
+    #
+    #         theta = self.robot.sensor_angles[i]
+    #         r = np.array([np.cos(theta), np.sin(theta)])
+    #
+    #         # Check distance to borders
+    #         for j in range(4):
+    #             q = np.array(self.edges[j])
+    #             s = np.array(self.edges[(j + 1) % 4]) - q
+    #             di = self._intersection(p, q, s, theta)
+    #             if di < d:
+    #                 d = di
+    #
+    #         # Check distance to obstacles
+    #         for obs in self.obstacles:
+    #             num_edges = len(obs.edges)
+    #             for j in range(num_edges):
+    #                 q = np.array(obs.edges[j])
+    #                 s = np.array(obs.edges[(j + 1) % num_edges]) - q
+    #                 di = self._intersection(p, q, s, theta)
+    #                 if di < d:
+    #                     d = di
+    #         dist.append(d)
+    #     return np.array(dist)
 
     def get_state_lims(self):
         """
