@@ -9,10 +9,14 @@ class Environment:
     Environment class
     """
 
-    def __init__(self):
+    def __init__(self, mean=np.zeros(2), cov=0*np.identity(2)):
         """
         Constructor for the Map class
         """
+        # Disturbance Distribution
+        self.mean = mean
+        self.cov = cov
+
         # Borders of the environment
         self.x_min = -10
         self.x_max = 10
@@ -65,12 +69,12 @@ class Environment:
         static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
         self.robot.set_state(static_state)
 
-        self.goal = np.array([0,5])
+        # self.goal = np.array([0,15])
 
         # # distance between pos and goal at most lambda
-        #goal_min = [self.x_min, 0]
-        #goal_max = [self.x_max, self.y_max]
-        #goal = np.random.uniform(low=goal_min, high=goal_max)
+        goal_min = [self.x_min, self.y_min]
+        goal_max = [self.x_max, self.y_max]
+        goal = np.random.uniform(low=goal_min, high=goal_max)
         # r = lamb * np.sqrt(np.random.rand())
         # theta = 2 * np.pi * np.random.rand()
         # goal = np.array([r*np.cos(theta), r*np.sin(theta)])
@@ -78,7 +82,7 @@ class Environment:
         #     r = lamb * np.sqrt(np.random.rand())
         #     theta = 2 * np.pi * np.random.rand()
         #     goal = np.array([r*np.cos(theta), r*np.sin(theta)])
-        #self.goal = goal
+        self.goal = goal
 
         #return self.robot.get_state(), self.check_sensors()
         return np.concatenate((self.robot.get_state(), self.goal))
@@ -300,12 +304,8 @@ class Environment:
 
         return d
 
-    @staticmethod
-    def _gen_noise():
-        mean = np.zeros(2)
-        # TODO: generalize shape
-        cov = 0 * np.ones((2, 2), dtype=float)
-        return np.random.multivariate_normal(mean, cov).reshape((2, 1))
+    def _gen_noise(self):
+        return np.random.multivariate_normal(self.mean, self.cov).reshape((2, 1))
 
 
 if __name__ == "__main__":
