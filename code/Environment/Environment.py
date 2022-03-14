@@ -80,23 +80,17 @@ class Environment:
         :return: numpy array
         """
         pos_min = [self.x_min, self.y_min]
-        pos_max = [self.x_max, self.y_max]
+        pos_max = [self.x_max, 0]
         static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
         self.robot.set_state(static_state)
 
-        # self.goal = np.array([0,15])
+
         # TODO: Generate goal based on obstacle positions
         # # distance between pos and goal at most lambda
-        goal_min = [self.x_min, self.y_min]
+        goal_min = [self.x_min, 0]
         goal_max = [self.x_max, self.y_max]
         goal = np.random.uniform(low=goal_min, high=goal_max)
-        # r = lamb * np.sqrt(np.random.rand())
-        # theta = 2 * np.pi * np.random.rand()
-        # goal = np.array([r*np.cos(theta), r*np.sin(theta)])
-        # while not self.is_inside(goal):
-        #     r = lamb * np.sqrt(np.random.rand())
-        #     theta = 2 * np.pi * np.random.rand()
-        #     goal = np.array([r*np.cos(theta), r*np.sin(theta)])
+
         self.goal = goal
 
         #return self.robot.get_state(), self.check_sensors()
