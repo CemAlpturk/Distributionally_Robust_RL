@@ -314,13 +314,13 @@ class Environment:
         :return:
         """
         reward = -self._dist_to_goal(s_[0, 0:2])/100
-        dists = self.get_dists(s_[0, 0:2])
+        dists = s_[0, 4:6]
         reward += np.min(dists)/100
         if self.is_collision(s_[0, 0:2]):
-            reward -= 50
+            reward -= 15
 
         if self.reached_goal(s_[0, 0:2]):
-            reward += 50
+            reward += 15
 
         return reward
 
