@@ -10,7 +10,7 @@ class Environment:
     """
 
     def __init__(self,
-                 action_space=None,
+                 num_actions=4,
                  mean=np.zeros(2),
                  cov=0*np.identity(2)):
         """
@@ -36,10 +36,13 @@ class Environment:
         self.edges = [upper_right, lower_right, lower_left, upper_left]
 
         self.robot = Robot()
-        if action_space is None:
-            self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
-        else:
-            self.action_space = action_space
+        self.num_actions = num_actions
+        self.action_space = None
+        self._gen_action_space()
+        # if action_space is None:
+        #     self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
+        # else:
+        #     self.action_space = action_space
         self.action_shape = (self.action_space.shape[1], 1)
 
         # Obstacles
@@ -332,6 +335,25 @@ class Environment:
         :return:
         """
         return np.linalg.norm(pos - self.goal, 2)
+
+    def _gen_action_space(self):
+        """
+        TODO: Add summary
+        :return:
+        """
+        angles = np.linspace(0, 2*np.pi, self.num_actions, endpoint=False) + np.pi/2
+        step_size = 1
+        actions = np.zeros((2, self.num_actions))
+        for i in range(self.num_actions):
+            action = step_size * np.array([np.cos(angles[i]), np.sin(angles[i])])
+            actions[:, i] = action
+        self.action_space = actions
+        print("Angles:")
+        print(angles)
+        print("Action Space:")
+        print(self.action_space)
+        
+
 
     @staticmethod
     def _intersection(p, q, s, theta):
