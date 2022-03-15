@@ -241,7 +241,7 @@ class Environment:
         #         return True
 
         dists = self.get_dists(pos)
-        if np.sum(dists <= 0.0) > 0:
+        if np.sum(dists <= self.robot.radius) > 0:
             return True
 
         return not self.is_inside(pos)
@@ -314,8 +314,8 @@ class Environment:
         :return:
         """
         reward = -self._dist_to_goal(s_[0, 0:2])/100
-        dists = s_[0, 4:6]
-        reward += np.min(dists)/100
+        # dists = s_[0, 4:6]
+        # reward += np.min(dists)/100
         if self.is_collision(s_[0, 0:2]):
             reward -= 15
 
