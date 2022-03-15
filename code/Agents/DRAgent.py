@@ -141,6 +141,7 @@ class DRAgent:
             state = self.env.reset(lamb).reshape(1, -1)
             goal = False
             col = False
+            collision = False
             # state = pos.reshape(1, -1)
             beta = beta0 + d_beta
 
@@ -163,8 +164,10 @@ class DRAgent:
                 if self.experience.num_elements >= batch_size:
                     self._experience_replay(batch_size, alpha, beta, discount, 1)
 
-                if end:
+                if goal:
                     break
+                if col:
+                    collision = True
 
             # self.Logger.log_loss(np.mean(self.episode_loss), ep)
             self.episode_loss = []
@@ -176,7 +179,7 @@ class DRAgent:
                     OKGREEN + f"Eps: {exploration_rate:>0.2f}, " + ENDC
                     # OKGREEN + f"Lambda: {lamb:>0.1f}" + ENDC
                 )
-            elif col:
+            elif collision:
                 print(
                     FAIL + f"Episode: {ep:>5}, " + ENDC +
                     FAIL + f"Score: {total_reward:>10.1f}, " + ENDC +
