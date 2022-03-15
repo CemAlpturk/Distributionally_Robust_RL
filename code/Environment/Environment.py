@@ -12,7 +12,8 @@ class Environment:
     def __init__(self,
                  num_actions=4,
                  mean=np.zeros(2),
-                 cov=0*np.identity(2)):
+                 cov=0*np.identity(2),
+                 obstacles=None):
         """
         Constructor for the Map class
         """
@@ -39,17 +40,8 @@ class Environment:
         self.num_actions = num_actions
         self.action_space = None
         self._gen_action_space()
-        # if action_space is None:
-        #     self.action_space = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]).T
-        # else:
-        #     self.action_space = action_space
         self.action_shape = (self.action_space.shape[1], 1)
 
-        # Obstacles
-        # obs_h = 2
-        # obs_w = 10
-        # # pos_range = [[-20, 20], [-20, 20]]
-        # cord = [-5, 10]
 
 
 
@@ -62,16 +54,22 @@ class Environment:
         self.goal = None
         self.goal_radius = 2
 
-        self.num_obstacles = 2
-        self.obstacles = []
+        # Obstacles
+        if obstacles is None:
+            self.num_obstacles = 0
+            self.obstacles = []
+        else:
+            self.num_obstacles = len(obstacles)
+            self.obstacles = []
 
-        radius = 2
-        self.obstacles.append(Obstacle_Circle(center=[-5, 0], radius=radius))
-        self.obstacles.append(Obstacle_Circle(center=[5, 0], radius=radius))
+            for center, radius in obstacles:
+                obs = Obstacle_Circle(center=center, radius=radius)
+                self.obstacles.append(obs)
 
-        # for k in range(self.num_obstacles):
-            # self.obstacles.append(Obstacle(cord=cord, width=obs_w, height=obs_h))
-            # self.obstacles[k].randomize(lim_center=pos_range)
+        # radius = 2
+        # self.obstacles.append(Obstacle_Circle(center=[-5, 0], radius=radius))
+        # self.obstacles.append(Obstacle_Circle(center=[5, 0], radius=radius))
+
 
     def reset(self, lamb=20):
         """
@@ -115,24 +113,23 @@ class Environment:
             "num_sensors": self.robot.num_sensors,
             "sensor_angles": self.robot.sensor_angles.tolist(),
             "goal_radius": self.goal_radius,
-            "states": ['pos_x', 'pos_y', 'goal_x', 'goal_y', 'dist_1', 'dist_2'],
+            "states": ['pos_x', 'pos_y', 'goal_x', 'goal_y'],
             "pos_idx": [0, 1],
             "goal_idx": [2, 3],
-            "dist_idx": [4, 5]
         }
 
-        # add obstacles to params
-        for idx, obs in enumerate(self.obstacles):
-            params['obstacles'][idx] = {
-                "center": obs.center,
-                "radius": obs.radius,
-                "static": obs.static
-                # "coord": obs.cord,
-                # "width": obs.width,
-                # "height": obs.height,
-                # "vertices": obs.edges,
-                # "static": obs.static
-            }
+        # Add obstacles to params
+        if self.num_obstacles > 0:
+            params["dist_idx"] = []
+            for idx, obs in enumerate(self.obstacles):
+                params['obstacles'][idx] = {
+                    "center": obs.center,
+                    "radius": obs.radius,
+                    "static": obs.static
+                }
+                params["states"].append(f"dist_{idx+1}")
+                params["dist_idx"].append(4+idx)
+
         return params
 
     def is_inside(self, p=None):
