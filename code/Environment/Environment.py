@@ -12,8 +12,9 @@ class Environment:
     def __init__(self,
                  num_actions=4,
                  mean=np.zeros(2),
-                 cov=0*np.identity(2),
-                 obstacles=None):
+                 cov=0 * np.identity(2),
+                 obstacles=None,
+                 settings=None):
         """
         Constructor for the Map class
         """
@@ -42,9 +43,6 @@ class Environment:
         self._gen_action_space()
         self.action_shape = (self.action_space.shape[1], 1)
 
-
-
-
         self.state_size = 2 + self.robot.num_sensors + 2
 
         self.sensor_min = 0
@@ -66,10 +64,9 @@ class Environment:
                 obs = Obstacle_Circle(center=center, radius=radius)
                 self.obstacles.append(obs)
 
-        # radius = 2
-        # self.obstacles.append(Obstacle_Circle(center=[-5, 0], radius=radius))
-        # self.obstacles.append(Obstacle_Circle(center=[5, 0], radius=radius))
-
+        # Override default parameters
+        if settings is not None:
+            self._parse_params(settings)
 
     def reset(self, lamb=20):
         """
@@ -82,7 +79,6 @@ class Environment:
         static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
         self.robot.set_state(static_state)
 
-
         # TODO: Generate goal based on obstacle positions
         # # distance between pos and goal at most lambda
         goal_min = [self.x_min, 0]
@@ -91,7 +87,7 @@ class Environment:
 
         self.goal = goal
 
-        #return self.robot.get_state(), self.check_sensors()
+        # return self.robot.get_state(), self.check_sensors()
         dists = self.get_dists()
         return np.concatenate((self.robot.get_state(), self.goal, dists))
 
@@ -127,8 +123,8 @@ class Environment:
                     "radius": obs.radius,
                     "static": obs.static
                 }
-                params["states"].append(f"dist_{idx+1}")
-                params["dist_idx"].append(4+idx)
+                params["states"].append(f"dist_{idx + 1}")
+                params["dist_idx"].append(4 + idx)
 
         return params
 
@@ -339,7 +335,7 @@ class Environment:
         TODO: Add summary
         :return:
         """
-        angles = np.linspace(0, 2*np.pi, self.num_actions, endpoint=False) + np.pi/2
+        angles = np.linspace(0, 2 * np.pi, self.num_actions, endpoint=False) + np.pi / 2
         step_size = 1
         actions = np.zeros((2, self.num_actions))
         for i in range(self.num_actions):
@@ -350,8 +346,6 @@ class Environment:
         print(angles)
         print("Action Space:")
         print(self.action_space)
-        
-
 
     @staticmethod
     def _intersection(p, q, s, theta):
@@ -372,6 +366,32 @@ class Environment:
 
     def _gen_noise(self):
         return np.random.multivariate_normal(self.mean, self.cov).reshape((2, 1))
+
+    def _parse_params(self, params: dict):
+        """
+        TODO: Add summary
+        :param params:
+        :return:
+        """
+        # Map limits
+        self.x_min, self.x_max = params['x_lims']
+        self.y_min, self.y_max = params['y_lims']
+
+        # Goal limits
+
+        # Action space
+        self.action_space = np.array(params['action_space']).T
+        self.num_actions = self.action_space.shape[1]
+
+        # Obstacles
+        self.num_obstacles = params['num_obstacles']
+        self.obstacles = []
+        obstacles = params['obstacles']
+        for obs in obstacles.values():
+            circ = Obstacle_Circle(center=obs['center'], radius=obs['radius'])
+            self.obstacles.append(circ)
+
+
 
 
 if __name__ == "__main__":
