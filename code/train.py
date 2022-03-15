@@ -7,7 +7,10 @@ import keras.backend as K
 
 from Utilities import plots
 
-env = Environment()
+# Noise dist
+cov = 0.1*np.identity(2)
+num_actions = 8
+env = Environment(num_actions=num_actions, cov=cov)
 
 
 def custom_loss_function(y_true, y_pred):
@@ -24,31 +27,31 @@ network_parameters = {
     "input_shape": (6,),
     "layers": [(512, 'relu'), (512, 'relu')],
     "optimizer": "adam",
-    "learning_rate": 0.001,
+    "learning_rate": 0.0001,
     "loss_function": "mse",
     # "loss_function": custom_loss_function,
     "initializer": tf.keras.initializers.he_uniform(),
     "dueling": True,
-    "output_size": 4
+    "output_size": num_actions
 }
 
 agent = DRAgent(network_parameters, env)
 # agent.set_state_lims(env.get_state_lims())
 agent.train(
-    max_episodes=10000,
+    max_episodes=20000,
     exploration_rate=1.0,
-    exploration_rate_decay=0.999,
+    exploration_rate_decay=0.9999,
     min_exploration_rate=0.1,
-    stochastic=True,
+    stochastic=False,
     discount=0.9,
     batch_size=32,
-    max_time_steps=50,
+    max_time_steps=40,
     warm_start=False,
-    best=False,
-    timedir='2022-03-10_20-40-56',
-    model_allignment_period=100,
-    evaluate_model_period=500,
-    evaluation_size=20,
+    best=True,
+    timedir='2022-03-14_16-45-49',
+    model_allignment_period=50,
+    evaluate_model_period=250,
+    evaluation_size=50,
     lamb=5,
     d_lamb=0.01,
     max_lamb=20,
