@@ -30,9 +30,12 @@ class Animator:
         "robot_color": 'r',
 
         "show_trajectory": True,
-        "trajectory_color": 'r',
+        "trajectory_color": 'b',
         "trajectory_style": '-',
         "trajectory_width": 1,
+
+        "obstacle_color": 'r',
+        "obstacle_border_color": 'k',
 
         "show_sensors": False,
         "sensor_color": 'g',
@@ -105,7 +108,8 @@ class Animator:
         robot = plt.Circle(
             (initial_x_pos, initial_y_pos),
             plot_settings["robot_radius"],
-            color=plot_settings["robot_color"])
+            facecolor=plot_settings["robot_color"],
+            edgecolor=plot_settings["robot_border_color"])
 
         goal_pos = goals[0]
         goal = plt.Circle(goal_pos,
@@ -116,7 +120,11 @@ class Animator:
 
         obstacles = []
         for obs in env.obstacles:
-            obstacles.append(plt.Rectangle(obs.cord, obs.width, obs.height))
+            #obstacles.append(plt.Rectangle(obs.cord, obs.width, obs.height))
+            obstacles.append(plt.Circle(obs.center,
+                                        obs.radius,
+                                        facecolor=plot_settings["obstacle_color"],
+                                        edgecolor=plot_settings["obstacle_border_color"]))
         num_obstacles = len(obstacles)
 
         if plot_settings['show_trajectory']:
