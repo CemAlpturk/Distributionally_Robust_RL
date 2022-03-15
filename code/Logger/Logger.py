@@ -24,7 +24,7 @@ class Logger:
 
         self._file_name = "logs.csv"  # Output file
         self.env_param_name = "env_params.json"
-        self.network_param_name = "network_params.json"
+        self.training_param_name = "training_params.json"
         self.evals_file_name = "evals.csv"
         self.loss_file_name = "loss.csv"
         self.dir = None
@@ -87,7 +87,7 @@ class Logger:
         self.env_param_dir = os.path.join(timedir, self.env_param_name)
 
         # Create path for network parameters
-        self.network_param_dir = os.path.join(timedir, self.network_param_name)
+        self.training_param_dir = os.path.join(timedir, self.training_param_name)
 
         # Create directory for episode losses
         losses_dir = os.path.join(timedir, "Loss")
@@ -136,7 +136,7 @@ class Logger:
         :return:
         """
         filename = "train_params.txt"
-        path = os.path.join(self.dir, filename)
+        path = os.path.join(self.timedir, filename)
         with open(path, 'w', newline='') as file:
             print(params, file=file)
 
@@ -186,5 +186,6 @@ class Logger:
         :param params: dict
         :return: None
         """
-        with open(self.network_param_dir, 'w') as fp:
+        with open(self.training_param_dir, 'w') as fp:
             json.dump(params, fp, indent=2)
+

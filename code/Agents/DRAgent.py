@@ -123,8 +123,9 @@ class DRAgent:
 
         self.params.update(params)
 
-        # path = self.Logger.env_param_dir
-        # plots.plot_vector_field(path, self.env, self)
+        # Save the training parameters
+        self.Logger.log_params(self.params)
+
         d_beta = (beta_max - beta0) / max_episodes
 
         if warm_start:
