@@ -307,20 +307,25 @@ class Environment:
         #     lims[i + 2, 1] = self.sensor_max
         return lims
 
-    def reward(self, s_):
+    def reward(self, s, s_):
         """
         Dummy function for now
+        :param s:
         :param s_:
         :return:
         """
-        reward = -self._dist_to_goal(s_[0, 0:2])/100
+        # Step cost
+        reward = -0.1
+        d_dist = self._dist_to_goal(s_[0, 0:2]) - self._dist_to_goal(s[0, 0:2])
+        reward += d_dist / 10
+        # reward = -self._dist_to_goal(s_[0, 0:2])/100
         # dists = s_[0, 4:6]
         # reward += np.min(dists)/100
         if self.is_collision(s_[0, 0:2]):
-            reward -= 15
+            reward -= 20
 
         if self.reached_goal(s_[0, 0:2]):
-            reward += 15
+            reward += 20
 
         return reward
 

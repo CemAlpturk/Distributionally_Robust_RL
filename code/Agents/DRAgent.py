@@ -152,7 +152,7 @@ class DRAgent:
                 action = self.actions[:, [action_idx]]
                 next_state, end, goal, col = self.env.step(action)
                 next_state = next_state.reshape(1, -1)
-                reward = self.env.reward(next_state)
+                reward = self.env.reward(state, next_state)
 
                 self._store(state, action_idx, reward, next_state, end)
 
@@ -435,7 +435,7 @@ class DRAgent:
 
                 x, end, goal, col = self.env.step(action)
                 next_state = x.reshape(1, -1)
-                reward = self.env.reward(next_state)
+                reward = self.env.reward(state, next_state)
 
                 # Log play
                 if play == 0:
