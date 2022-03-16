@@ -70,6 +70,7 @@ class DRAgent:
     def train(
             self,
             max_episodes: int,
+            extra_episodes=1000,
             exploration_rate=0.9,
             discount=0.9,
             batch_size=32,
@@ -138,7 +139,7 @@ class DRAgent:
                 if not check:
                     print("Using default network")
 
-        for ep in range(1, max_episodes + 1):
+        for ep in range(1, max_episodes + extra_episodes + 1):
             total_reward = 0
             steps = 0
             state = self.env.reset(lamb).reshape(1, -1)
