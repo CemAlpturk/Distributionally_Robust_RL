@@ -82,15 +82,33 @@ class Environment:
         :return: numpy array
         """
         pos_min = [self.x_min, self.y_min]
-        pos_max = [self.x_max, 0]
-        static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
+        pos_max = [self.x_max, self.y_max]
+        
+        # Check for collisions
+        check = False
+        while not check:
+            static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
+            if not self.is_collision(static_state):
+                check = True
+        
         self.robot.set_state(static_state)
 
         # TODO: Generate goal based on obstacle positions
         # # distance between pos and goal at most lambda
-        goal_min = [self.x_min, 0]
-        goal_max = [self.x_max, self.y_max]
-        goal = np.random.uniform(low=goal_min, high=goal_max)
+        # goal_min = [self.x_min, 0]
+        # goal_max = [self.x_max, self.y_max]
+        goal_min = static_state - [lamb, lamb]
+        goal_max = static_state + [lamb, lamb]
+        # Not good FIX
+        check = False
+        while not check:
+            goal = np.random.uniform(low=goal_min, high=goal_max)
+            
+            # Check if sampled position is lamb close
+            d = np.linalg.norm(goal - static_state, 2)
+            if d <= lamb:
+                if not self.is_collision(goal, self.goal_radius):
+                    check = True
 
         self.goal = goal
 
@@ -221,13 +239,15 @@ class Environment:
 
         return np.linalg.norm(pos - self.goal, 2) <= self.goal_radius
 
-    def is_collision(self, pos=None):
+    def is_collision(self, pos=None, rad=None):
         """
         Checks collision between the robot and all the obstacles
         :return: Boolean
         """
         if pos is None:
             pos = self.robot.get_state().reshape((2,))
+        if rad is None:
+            rad = self.robot.radius
         # for obs in self.obstacles:
         #     # Check distances to obstacles
         #     d, _ = obs.closest_dist(pos)
@@ -241,7 +261,7 @@ class Environment:
         #         return True
 
         dists = self.get_dists(pos)
-        if np.sum(dists <= self.robot.radius) > 0:
+        if np.sum(dists <= rad) > 0:
             return True
 
         return not self.is_inside(pos)
