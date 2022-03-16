@@ -6,7 +6,6 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Lambda, Input, Add
 from tensorflow.keras.models import load_model
 
-
 # noinspection PyUnresolvedReferences
 from tensorflow.keras.models import load_model
 from tensorflow.keras.optimizers import Adam
@@ -62,7 +61,7 @@ class NetworkBuilder:
         # Dueling layers
         V = Dense(1, kernel_initializer=init)(X)
         V = Lambda(lambda s: K.expand_dims(s[:, 0], -1),
-                             output_shape=(network_parameters["output_size"],))(V)
+                   output_shape=(network_parameters["output_size"],))(V)
         A = Dense(network_parameters["output_size"], kernel_initializer=init)(X)
         A = Lambda(lambda a: a[:, :] - K.mean(a[:, :], keepdims=True),
                    output_shape=(network_parameters["output_size"],))(A)
@@ -113,7 +112,6 @@ if __name__ == '__main__':
     }
 
     model = NetworkBuilder.build_dueling(network_parameters)
-
 
     x = np.random.rand(1, 4)
     print(x)
