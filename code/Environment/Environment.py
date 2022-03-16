@@ -14,6 +14,7 @@ class Environment:
                  mean=np.zeros(2),
                  cov=0 * np.identity(2),
                  obstacles=None,
+                 lims=None
                  settings=None):
         """
         Constructor for the Map class
@@ -23,11 +24,15 @@ class Environment:
         self.cov = cov
 
         # Borders of the environment
-        self.x_min = -10
-        self.x_max = 10
+        if lims is None:
+            self.x_min = -10
+            self.x_max = 10
 
-        self.y_min = -10
-        self.y_max = 10
+            self.y_min = -10
+            self.y_max = 10
+        else:
+            self.x_min, self.x_max = lims[0]
+            self.y_min, self.y_max = lims[1]
 
         # Generate edges
         upper_right = [self.x_max, self.y_max]
