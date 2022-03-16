@@ -10,7 +10,10 @@ from Utilities import plots
 # Noise dist
 cov = 0.1*np.identity(2)
 num_actions = 8
-env = Environment(num_actions=num_actions, cov=cov)
+obstacles = [([-5, -5], 2), ([5, -5], 2), ([5, 5], 2), ([-5, 5],2)]
+lims = [[-20, 20], [-20, 20]]
+env = Environment(num_actions=num_actions, cov=cov, obstacles=obstacles, lims=lims)
+num_states = env.state_size
 
 
 def custom_loss_function(y_true, y_pred):
@@ -24,7 +27,7 @@ def custom_loss_function(y_true, y_pred):
 
 
 network_parameters = {
-    "input_shape": (6,),
+    "input_shape": (num_states,),
     "layers": [(512, 'relu'), (512, 'relu')],
     "optimizer": "adam",
     "learning_rate": 0.0001,
@@ -40,7 +43,7 @@ agent = DRAgent(network_parameters, env)
 agent.train(
     max_episodes=20000,
     exploration_rate=1.0,
-    exploration_rate_decay=0.9999,
+    exploration_rate_decay=0.9995,
     min_exploration_rate=0.1,
     stochastic=False,
     discount=0.9,

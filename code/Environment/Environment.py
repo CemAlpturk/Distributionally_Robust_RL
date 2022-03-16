@@ -14,6 +14,7 @@ class Environment:
                  mean=np.zeros(2),
                  cov=0 * np.identity(2),
                  obstacles=None,
+                 lims=None,
                  settings=None):
         """
         Constructor for the Map class
@@ -23,11 +24,15 @@ class Environment:
         self.cov = cov
 
         # Borders of the environment
-        self.x_min = -10
-        self.x_max = 10
+        if lims is None:
+            self.x_min = -10
+            self.x_max = 10
 
-        self.y_min = -10
-        self.y_max = 10
+            self.y_min = -10
+            self.y_max = 10
+        else:
+            self.x_min, self.x_max = lims[0]
+            self.y_min, self.y_max = lims[1]
 
         # Generate edges
         upper_right = [self.x_max, self.y_max]
@@ -43,7 +48,7 @@ class Environment:
         self._gen_action_space()
         self.action_shape = (self.action_space.shape[1], 1)
 
-        self.state_size = 2 + self.robot.num_sensors + 2
+        
 
         self.sensor_min = 0
         self.sensor_max = np.sqrt((self.x_max - self.x_min) ** 2 +
@@ -67,6 +72,8 @@ class Environment:
         # Override default parameters
         if settings is not None:
             self._parse_params(settings)
+            
+        self.state_size = 4 + self.num_obstacles
 
     def reset(self, lamb=20):
         """
