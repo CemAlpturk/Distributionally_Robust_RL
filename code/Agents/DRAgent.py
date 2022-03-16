@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 
-from .NetworkBuilder import NetworkBuilder
+from .NetworkBuilder import NetworkBuilder, BCP
 from Logger.Logger import Logger
 from Utilities.Animator import Animator
 from Utilities import plots
@@ -208,6 +208,8 @@ class DRAgent:
                     f"Score: {total_reward:>10.1f}, "
                     f"Steps: {steps:>4}, "
                     f"Eps: {exploration_rate:>0.2f}, "
+                    f"Simulation time: {simulation_time:>6.2f} Seconds, "
+                    f"Training time: {training_time:>6.2f} Seconds, "
                     # f"Lambda: {lamb:>0.1f}"
                 )
 
@@ -247,36 +249,24 @@ class DRAgent:
         :return:
         """
         # minibatch = random.sample(self.experience, batch_size)
-        t1 = time.time()
         states, actions, rewards, next_states, terminated, sample_ps, sample_idx = self.experience.sample(batch_size)
-        t2 = time.time()
-        print(f"Sampling: {t2-t1}")
         # Calculate weights for importance sampling
 
         w = np.power((self.experience.size * sample_ps), -beta)
         w = w / np.max(w)  # Normalize weights
 
         # Build the targets
-        t1 = time.time()
         targets, ps_new = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
-        t2 = time.time()
-        print(f"Build Targets: {t2-t1}")
-        t1 = time.time()
         history = self.q_network.fit(states,
                                      targets,
                                      epochs=epochs,
                                      verbose=0,
                                      batch_size=batch_size,
                                      sample_weight=w)
-        t2 = time.time()
-        print(f"Training: {t2-t1}")
         self.episode_loss.append(history.history['loss'][0])
 
-        t1 = time.time()
         # Update priorities in memory
         self.experience.update_probs(sample_idx, np.power(ps_new, alpha))
-        t2 = time.time()
-        print(f"Update: {t2-t1}")
 
     def _extract_data(self, batch_size, minibatch):
         """
