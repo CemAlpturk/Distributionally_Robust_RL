@@ -125,8 +125,10 @@ class DRAgent:
 
         # Save the training parameters
         self.Logger.log_params(self.params)
-
+        
+        d_lamb = (max_lamb - lamb) / max_episodes
         d_beta = (beta_max - beta0) / max_episodes
+        d_eps = (exploration_rate - min_exploration_rate) / max_episodes
 
         if warm_start:
             if timedir is None:
@@ -188,7 +190,7 @@ class DRAgent:
                     OKGREEN + f"Steps: {steps:>4}, " + ENDC +
                     OKGREEN + f"Eps: {exploration_rate:>0.2f}, " + ENDC +
                     OKGREEN + f"Simulation time: {simulation_time:>6.2f} Seconds, " + ENDC +
-                    OKGREEN + f"Training time: {training_time:>6.2f} Seconds, " + ENDC
+                    OKGREEN + f"Training time: {training_time:>6.2f} Seconds" + ENDC
                     # OKGREEN + f"Lambda: {lamb:>0.1f}" + ENDC
                 )
             elif collision:
@@ -198,7 +200,7 @@ class DRAgent:
                     FAIL + f"Steps: {steps:>4}, " + ENDC +
                     FAIL + f"Eps: {exploration_rate:>0.2f}, " + ENDC +
                     FAIL + f"Simulation time: {simulation_time:>6.2f} Seconds, " + ENDC +
-                    FAIL + f"Training time: {training_time:>6.2f} Seconds, " + ENDC
+                    FAIL + f"Training time: {training_time:>6.2f} Seconds" + ENDC
                     # FAIL + f"Lambda: {lamb:>0.1f}" + ENDC
                 )
 
@@ -209,12 +211,12 @@ class DRAgent:
                     f"Steps: {steps:>4}, "
                     f"Eps: {exploration_rate:>0.2f}, "
                     f"Simulation time: {simulation_time:>6.2f} Seconds, "
-                    f"Training time: {training_time:>6.2f} Seconds, "
+                    f"Training time: {training_time:>6.2f} Seconds"
                     # f"Lambda: {lamb:>0.1f}"
                 )
 
             if exploration_rate > min_exploration_rate:
-                exploration_rate *= exploration_rate_decay
+                exploration_rate -= d_eps
 
             if lamb < max_lamb:
                 lamb += d_lamb
