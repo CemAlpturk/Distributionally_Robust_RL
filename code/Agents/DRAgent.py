@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 
-from .NetworkBuilder import NetworkBuilder, BCP
+from .NetworkBuilder import NetworkBuilder
 from Logger.Logger import Logger
 from Utilities.Animator import Animator
 from Utilities import plots

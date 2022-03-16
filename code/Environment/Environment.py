@@ -87,18 +87,18 @@ class Environment:
         # Check for collisions
         check = False
         while not check:
-            static_state = np.random.uniform(low=pos_min, high=pos_max).reshape(-1, 1)
+            static_state = np.random.uniform(low=pos_min, high=pos_max)
             if not self.is_collision(static_state):
                 check = True
         
-        self.robot.set_state(static_state)
+        self.robot.set_state(static_state.reshape(-1,1))
 
         # TODO: Generate goal based on obstacle positions
         # # distance between pos and goal at most lambda
         # goal_min = [self.x_min, 0]
         # goal_max = [self.x_max, self.y_max]
-        goal_min = static_state - [lamb, lamb]
-        goal_max = static_state + [lamb, lamb]
+        goal_min = static_state - lamb
+        goal_max = static_state + lamb
         # Not good FIX
         check = False
         while not check:
