@@ -10,8 +10,10 @@ from Utilities import plots
 # Noise dist
 cov = 0.1*np.identity(2)
 num_actions = 8
-obstacles = [([0, 0], 1), ([-5, -5], 2), ([5, 5], 3)]
-env = Environment(num_actions=num_actions, cov=cov, obstacles=obstacles)
+obstacles = [([-5, -5], 2), ([5, -5], 2), ([5, 5], 2), ([-5, 5],2)]
+lims = [[-20, 20], [-20, 20]]
+env = Environment(num_actions=num_actions, cov=cov, obstacles=obstacles, lims=lims)
+num_states = env.state_size
 
 
 def custom_loss_function(y_true, y_pred):
@@ -25,7 +27,7 @@ def custom_loss_function(y_true, y_pred):
 
 
 network_parameters = {
-    "input_shape": (6,),
+    "input_shape": (num_states,),
     "layers": [(512, 'relu'), (512, 'relu')],
     "optimizer": "adam",
     "learning_rate": 0.0001,
