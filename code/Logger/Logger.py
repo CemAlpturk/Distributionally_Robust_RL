@@ -104,7 +104,8 @@ class Logger:
 
         env = agent.env
         env_params = env.get_env_parameters()
-        plot_vector_field(env_params, env, agent, path=file_path, goal=goal, show=False)
+        episode_path = os.path.join(self.ep_dir, f"Episode_{episode}.csv")
+        plot_vector_field(env_params, env, agent, path=file_path, goal=goal, show=False, episode_path=episode_path)
 
     def log_vector_field_animation(self, agent, episode):
 

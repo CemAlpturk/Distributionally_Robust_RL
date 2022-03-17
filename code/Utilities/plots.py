@@ -13,7 +13,7 @@ import shutil
 from tqdm import tqdm
 
 
-def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
+def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None):
     """
     Plots a vector field containing the actions for a grid
     :param show:
@@ -47,9 +47,18 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
         ax.grid()
         ax.set_axisbelow(True)
 
+    # Draw path from csv
+    if episode_path is not None:
+        data = pd.read_csv(episode_path, usecols=params['states'])
+        pos = data[np.array(params['states'])[params['pos_idx']]].to_numpy()
+        goal = data[np.array(params['states'])[params['goal_idx']]].to_numpy()
 
-
-
+        ax.plot(pos[:, 0], pos[:, 1],
+                linestyle='-',
+                color='r',
+                linewidth=1)
+        # ax.add_patch(line)
+        goal = data[np.array(params['states'])[params['goal_idx']]].to_numpy()[0]
 
     # Create grid
     nx = 20  # int(params['x_lims'][1] - params['x_lims'][0])   # number of points n^2
@@ -66,16 +75,16 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False):
         goal = np.array([0, 5])
 
     # Put the states in matrix form
-    states = np.zeros((nx*ny, len(params['states'])), dtype=float)
+    states = np.zeros((nx * ny, len(params['states'])), dtype=float)
     for i in range(nx):
         for j in range(ny):
             pos = np.array([xv[i, j], yv[i, j]])
-            states[i*ny + j] = env.gen_state(pos, goal)
+            states[i * ny + j] = env.gen_state(pos, goal)
 
     # Predict in batch form
     actions = agent.batch_action(states)
 
-    for i in range(nx*ny):
+    for i in range(nx * ny):
         pos = states[i, 0:2]
         action = env.action_space[:, actions[i]]
         dx = action[0] / d_x
