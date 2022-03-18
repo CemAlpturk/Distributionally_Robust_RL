@@ -27,7 +27,7 @@ class Robot:
         self._A = np.array([[1, 0], [0, 1]])
         self._B = np.array([[1, 0], [0, 1]])
 
-        self.radius = 0.5
+        self.radius = 0.0
 
         # Sensors
         self.num_sensors = 6

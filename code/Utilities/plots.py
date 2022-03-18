@@ -90,7 +90,7 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
         dx = action[0] / d_x
         dy = action[1] / d_y
 
-        arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.15)
+        arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.05)
         ax.add_patch(arrow)
 
     ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))

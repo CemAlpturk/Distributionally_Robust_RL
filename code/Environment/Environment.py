@@ -55,7 +55,7 @@ class Environment:
                                   (self.y_max - self.y_min) ** 2)
 
         self.goal = None
-        self.goal_radius = 2
+        self.goal_radius = 0.5
 
         # Obstacles
         if obstacles is None:
