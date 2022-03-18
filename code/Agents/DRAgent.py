@@ -6,6 +6,9 @@ import numpy as np
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 
+import torch
+from torch import nn
+
 from .NetworkBuilder import NetworkBuilder
 from Logger.Logger import Logger
 from Utilities.Animator import Animator
@@ -21,6 +24,38 @@ FAIL = '\033[91m'
 ENDC = '\033[0m'
 BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
+
+
+class DQN(nn.Module):
+    def __init__(self, params: dict):
+        super(DQN, self).__init__()
+
+        layers = params["layers"]
+        num_actions = params["num_actions"]
+
+        self.layers = []
+
+        for i in range(0, len(layers)-1):
+            self.layers.append(nn.Linear(layers[i], layers[i+1]))
+
+        self.value = nn.Linear(layers[-1], 1)
+        self.adv = nn.Linear(layers[-1], num_actions)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Dense layers
+        for i in range(len(self.layers)):
+            x = self.layers[i](x)
+            x = self.relu(x)
+
+        value = self.value(x)
+        adv = self.adv(x)
+
+        adv_average = torch.mean(adv, dim=1, keepdim=True)
+        q_vals = value + adv - adv_average
+
+        return q_vals
+
 
 
 class DRAgent:
@@ -126,7 +161,7 @@ class DRAgent:
 
         # Save the training parameters
         self.Logger.log_params(self.params)
-        
+
         d_lamb = (max_lamb - lamb) / max_episodes
         d_beta = (beta_max - beta0) / max_episodes
         d_eps = (exploration_rate - min_exploration_rate) / max_episodes
@@ -423,7 +458,6 @@ class DRAgent:
         else:
             print(f"'{filepath}' not found")
             return False
-
 
     def _evaluate(self, n, max_steps, episode, lamb):
         """
