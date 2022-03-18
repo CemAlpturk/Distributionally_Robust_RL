@@ -35,8 +35,8 @@ class DQN(nn.Module):
 
         self.layers = []
 
-        for i in range(0, len(layers)-1):
-            self.layers.append(nn.Linear(layers[i], layers[i+1]))
+        for i in range(0, len(layers) - 1):
+            self.layers.append(nn.Linear(layers[i], layers[i + 1]))
 
         self.value = nn.Linear(layers[-1], 1)
         self.adv = nn.Linear(layers[-1], num_actions)
@@ -57,6 +57,13 @@ class DQN(nn.Module):
         return q_vals
 
 
+def custom_loss(y_preds, targets):
+    idx = torch.nonzero(targets)
+    diff = targets[idx[:, 0], idx[:, 1]] - y_preds[idx[:, 0], idx[:, 1]]
+    loss = torch.mean(torch.square(diff))
+    ps = torch.absolute(diff).detach().numpy()
+    return loss, ps
+
 
 class DRAgent:
     """
@@ -70,12 +77,11 @@ class DRAgent:
         """
         Class Constructor
         """
-        if network_parameters["dueling"]:
-            self.q_network = NetworkBuilder.build_dueling(network_parameters)
-            self.target_network = NetworkBuilder.build_dueling(network_parameters)
-        else:
-            self.q_network = NetworkBuilder.build(network_parameters)
-            self.target_network = NetworkBuilder.build(network_parameters)
+
+        # Create models
+        self.q_network = DQN(network_parameters)
+        self.target_network = DQN(network_parameters)
+
         self.state_lims = None
         self.normalize = False
         self.num_states = network_parameters['input_shape'][0]
@@ -83,7 +89,6 @@ class DRAgent:
         self.actions = env.action_space
         self.num_actions = self.actions.shape[1]
 
-        # self.experience = deque(maxlen=100)
         self.experience = Memory(size=memory, state_size=self.num_states)
         self.Logger = Logger()
         self.episode_loss = []
@@ -91,8 +96,6 @@ class DRAgent:
         env_parameters = env.get_env_parameters()
         self.Logger.log_env(env_parameters)
 
-        # self.q_network = NetworkBuilder.build(network_parameters)
-        # self.target_network = NetworkBuilder.build(network_parameters)
         self._align_target_model()
 
         self.best_score = -float('inf')
@@ -101,6 +104,7 @@ class DRAgent:
             "memory": memory,
         }
         self.params.update(network_parameters)
+        self.learning_rate = None
 
     def train(
             self,
@@ -109,6 +113,7 @@ class DRAgent:
             exploration_rate=0.9,
             discount=0.9,
             batch_size=32,
+            learning_rate=0.005,
             max_time_steps=100,
             warm_start=False,
             best=False,
@@ -128,7 +133,6 @@ class DRAgent:
             render=False,
             save_animation_period=1000):
         """
-        NOT COMPLETE!!!
         :return: None
         """
 
@@ -138,6 +142,7 @@ class DRAgent:
             "exploration_rate": exploration_rate,
             "discount": discount,
             "batch_size": batch_size,
+            "learning_rate": learning_rate,
             "max_time_steps": max_time_steps,
             "warm_start": warm_start,
             "best": best,
@@ -165,6 +170,8 @@ class DRAgent:
         d_lamb = (max_lamb - lamb) / max_episodes
         d_beta = (beta_max - beta0) / max_episodes
         d_eps = (exploration_rate - min_exploration_rate) / max_episodes
+
+        self.learning_rate = learning_rate
 
         if warm_start:
             if timedir is None:
@@ -294,34 +301,20 @@ class DRAgent:
         w = w / np.max(w)  # Normalize weights
 
         # Build the targets
-        targets, ps_new = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
-        history = self.q_network.fit(states,
-                                     targets,
-                                     epochs=epochs,
-                                     verbose=0,
-                                     batch_size=batch_size,
-                                     sample_weight=w)
-        self.episode_loss.append(history.history['loss'][0])
+        targets = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
+
+        optimizer = torch.optim.Adam(self.q_network.parameters(), lr=self.learning_rate)
+        ps = self._train(states, targets, optimizer)
+        # history = self.q_network.fit(states,
+        #                              targets,
+        #                              epochs=epochs,
+        #                              verbose=0,
+        #                              batch_size=batch_size,
+        #                              sample_weight=w)
+        # self.episode_loss.append(history.history['loss'][0])
 
         # Update priorities in memory
-        self.experience.update_probs(sample_idx, np.power(ps_new, alpha))
-
-    def _extract_data(self, batch_size, minibatch):
-        """
-        TODO: Add summary
-        :param batch_size:
-        :param minibatch:
-        :return:
-        """
-        # TODO: find a more efficient way to unpack values
-        # Extract the values
-        states = np.array([x[0] for x in minibatch]).reshape(batch_size, -1)  # ??
-        actions = np.array([x[1] for x in minibatch])
-        rewards = np.array([x[2] for x in minibatch])
-        next_states = np.array([x[3] for x in minibatch]).reshape(batch_size, -1)  # ??
-        terminated = np.array([x[4] for x in minibatch])
-
-        return states, actions, rewards, next_states, terminated
+        self.experience.update_probs(sample_idx, np.power(ps, alpha))
 
     def _build_targets(
             self,
@@ -345,26 +338,30 @@ class DRAgent:
         """
 
         i = terminated == 0
-        # targets = np.zeros((batch_size, self.num_actions))
-        targets = self.q_network.predict(states)
-        preds = np.array(targets, copy=True)  # Copy the predictions
-        t = self.target_network.predict(next_states[i, :])
+        targets = np.zeros((batch_size, self.num_actions))
+
+        next_q_policy = self._predict(next_states[i, :], q_network=True)
+        next_a = np.argmax(next_q_policy, axis=1)
+
+        next_q_target = self._predict(next_states[i, :], q_network=False)
 
         targets[range(batch_size), actions] = rewards
+        targets[i, actions[i]] = discount * next_q_target[np.arange(next_q_target.shape[0]), next_a]
 
-        # Debug print(f"targets: {targets.shape}") print(f"t: {t.shape}") print(f"i: {i.shape}") print(f"np.argmax(
-        # targets[i, :], axis=1): {np.argmax(targets[i, :], axis=1).shape}") print(f"t[:, np.argmax(targets,
-        # axis=1)[i]]: {t[np.arange(t.shape[0]), np.argmax(targets[i,:], axis=1)].shape}")
+        return targets
 
-        # Double DQN
-        targets[i, actions[i]] += discount * t[np.arange(t.shape[0]), np.argmax(targets[i, :], axis=1)]
-        # targets[i, actions[i]] += discount * np.amax(t, axis=1)
+    def _train(self, states, targets, optimizer):
+        x = torch.Tensor(states)
+        y_true = torch.Tensor(targets)
 
-        # Compute TD-error and update the priorities
-        td_err = targets - preds
-        ps_new = np.linalg.norm(td_err, 1, axis=1)
+        pred = self.q_network(x)
+        loss, ps = custom_loss(pred, y_true)
 
-        return targets, ps_new
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        return ps
 
     def _store(self, state, action, reward, next_state, terminated):
         """
@@ -379,20 +376,13 @@ class DRAgent:
         self.experience.append(state, action, reward, next_state, terminated)
 
     def act(self, state, eps=-1.0, stoc=False):
-        if eps > 0:
-            if np.random.rand() < eps:
-                action = np.random.choice(range(self.num_actions))
-                return action
-        if self.normalize:
-            state = self._normalize_states(state)
-        q_values = self.q_network.predict(state)
-        if stoc:
-            # Apply softmax
-            probs = self._softmax(q_values)[0]
-            # Sample action
-            action = np.random.choice(list(range(self.num_actions)), p=probs)
-        else:
-            action = np.argmax(q_values[0])
+        if np.random.rand() < eps:
+            action = np.random.choice(range(self.num_actions))
+            return action
+
+        x = torch.FloatTensor(state)
+        q_values = self.q_network(x)
+        action = torch.argmax(q_values).item()
         return action
 
     def batch_action(self, states):
@@ -401,9 +391,18 @@ class DRAgent:
         :param states:
         :return:
         """
-        q_values = self.q_network.predict(states)
-        actions = np.argmax(q_values, axis=1)
+        x = torch.FloatTensor(states)
+        q_values = self.q_network(x)
+        actions = torch.argmax(q_values, dim=1).detach().numpy()
         return actions
+
+    def _predict(self, states, q_network=True):
+        x = torch.FloatTensor(states)
+        if q_network:
+            q_vals = self.q_network(x)
+        else:
+            q_vals = self.target_network(x)
+        return q_vals.detach().numpy()
 
     def set_state_lims(self, lims):
         """
@@ -427,7 +426,7 @@ class DRAgent:
         return (state - mean_values) / diff
 
     def _align_target_model(self):
-        self.target_network.set_weights(self.q_network.get_weights())
+        self.target_network.load_state_dict(self.q_network.state_dict())
 
     def _save_model(self, prefix: str):
         """
