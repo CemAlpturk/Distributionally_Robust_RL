@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataset import IterableDataset
 
 from .Memory import Memory
+# from ..Utilities.plots import plot_vector_field
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 
@@ -162,7 +163,7 @@ class Agent:
             epsilon: float = 0.0,
             lamb: float = 20.0,
             device: str = "cpu",
-    ) -> Tuple[float, bool]:
+    ) -> Tuple[float, bool, bool]:
         """Carries out a single interaction step between the agent and the environment.
 
         Args:
@@ -184,9 +185,9 @@ class Agent:
         self.replay_buffer.append(self.state, action, reward, new_state, done)
 
         self.state = new_state
-        if done:
+        if goal:
             self.reset(lamb)
-        return reward, done
+        return reward, done, goal
 
 
 class DQNLightning(LightningModule):
@@ -238,6 +239,7 @@ class DQNLightning(LightningModule):
         self.env = env  # gym.make(self.hparams.env)
         obs_size = env.state_size  # self.env.observation_space.shape[0]
         n_actions = env.num_actions  # self.env.action_space.n
+        self.env_params = env.get_env_parameters()
 
         self.net = DQN(obs_size, n_actions)
         self.target_net = DQN(obs_size, n_actions)
@@ -268,7 +270,7 @@ class DQNLightning(LightningModule):
             self.agent.reset(lamb=lamb)
             episode_reward = 0.0
             for step in range(self.hparams.episode_length):
-                reward, done = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+                reward, done, goal = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
                 episode_reward += reward
                 if done:
                     break
@@ -366,7 +368,7 @@ class DQNLightning(LightningModule):
         self.log("lambda", lamb)
 
         # step through environment with agent
-        reward, done = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+        reward, done, _ = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
         self.episode_reward += reward
 
         # calculates training loss
@@ -416,6 +418,9 @@ class DQNLightning(LightningModule):
         # avg_reward = sum(rewards) / len(rewards)
         avg_reward = outputs["test_reward"]
         self.log("avg_test_reward", avg_reward)
+
+        # Plot values
+        # fig = plot_vector_field(self.env_params, self.env, self)
         return {"avg_test_reward": avg_reward}
 
     def configure_optimizers(self) -> List[Optimizer]:
@@ -443,3 +448,10 @@ class DQNLightning(LightningModule):
     def get_device(self, batch) -> str:
         """Retrieve device currently being used by minibatch."""
         return batch[0].device.index if self.on_gpu else "cpu"
+
+    @torch.no_grad()
+    def batch_action(self, states):
+        x = torch.Tensor(states)
+        q_values = self.net(x)
+        actions = torch.argmax(q_values, dim=1).detach().numpy()
+        return actions
