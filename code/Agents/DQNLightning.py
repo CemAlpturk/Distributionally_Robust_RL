@@ -298,9 +298,17 @@ class DQNLightning(LightningModule):
         state_action_values = self.net(states).gather(1, actions.long().unsqueeze(-1)).squeeze(-1)
 
         with torch.no_grad():
-            next_state_values = self.target_net(next_states).max(1)[0]
+            next_actions = self.net(next_states).argmax(1)
+            # next_state_values = self.target_net(next_states).max(1)[0]
+            next_state_values = self.target_net(next_states).gather(1, next_actions.unsqueeze(-1)).squeeze(-1)
             next_state_values[dones] = 0.0
             next_state_values = next_state_values.detach()
+
+        # i = dones == 0
+        # with torch.no_grad():
+        #     targets = self.net(states)
+        #     next_q_policy = self.net(next_states[dones])
+        #     next_a =
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
