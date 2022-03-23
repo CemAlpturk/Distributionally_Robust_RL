@@ -12,6 +12,8 @@ from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import IterableDataset
 
+from .Memory import Memory
+
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 
 
@@ -19,13 +21,13 @@ class DQN(nn.Module):
     """Simple MLP network."""
 
     def __init__(self, state_size: int, n_actions: int, hidden_size: int = 100):
-
         super(DQN, self).__init__()
 
         self.fc1 = nn.Linear(state_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.relu = nn.ReLU()
-        self.fc_value = nn.Linear(hidden_size, hidden_size)
-        self.fc_adv = nn.Linear(hidden_size, hidden_size)
+        # self.fc_value = nn.Linear(hidden_size, hidden_size)
+        # self.fc_adv = nn.Linear(hidden_size, hidden_size)
 
         self.value = nn.Linear(hidden_size, 1)
         self.adv = nn.Linear(hidden_size, n_actions)
@@ -33,13 +35,15 @@ class DQN(nn.Module):
     def forward(self, x):
         x = self.fc1(x.float())
         x = self.relu(x)
-        value = self.fc_value(x)
-        value = self.relu(value)
-        adv = self.fc_adv(x)
-        adv = self.relu(adv)
+        x = self.fc2(x)
+        x = self.relu(x)
+        # value = self.fc_value(x)
+        # value = self.relu(value)
+        # adv = self.fc_adv(x)
+        # adv = self.relu(adv)
 
-        value = self.value(value)
-        adv = self.adv(adv)
+        value = self.value(x)
+        adv = self.adv(x)
 
         adv_average = torch.mean(adv, dim=1, keepdim=True)
         Q = value + adv - adv_average
@@ -96,20 +100,21 @@ class RLDataset(IterableDataset):
         sample_size: number of experiences to sample at a time
     """
 
-    def __init__(self, buffer: ReplayBuffer, sample_size: int = 200) -> None:
+    def __init__(self, buffer: Memory, sample_size: int = 2000) -> None:
         self.buffer = buffer
         self.sample_size = sample_size
 
     def __iter__(self) -> Iterator[Tuple]:
-        states, actions, rewards, dones, new_states = self.buffer.sample(self.sample_size)
+        # states, actions, rewards, dones, new_states = self.buffer.sample(self.sample_size)
+        states, actions, rewards, new_states, dones, probs, idxs = self.buffer.sample(self.sample_size)
         for i in range(len(dones)):
-            yield states[i], actions[i], rewards[i], dones[i], new_states[i]
+            yield states[i], actions[i], rewards[i], dones[i], new_states[i], probs[i], idxs[i]
 
 
 class Agent:
     """Base Agent class handeling the interaction with the environment."""
 
-    def __init__(self, env, replay_buffer: ReplayBuffer) -> None:
+    def __init__(self, env, replay_buffer: Memory) -> None:
         """
         Args:
             env: training environment
@@ -139,7 +144,7 @@ class Agent:
             # action = self.env.action_space.sample()
             action = np.random.choice(range(self.env.num_actions))
         else:
-            state = torch.tensor([self.state])
+            state = torch.tensor(np.array([self.state]))
 
             if device not in ["cpu"]:
                 state = state.cuda(device)
@@ -174,9 +179,9 @@ class Agent:
         # do step in the environment
         new_state, reward, done, goal, col = self.env.step(action)
 
-        exp = Experience(self.state, action, reward, done, new_state)
+        # exp = Experience(self.state, action, reward, done, new_state)
 
-        self.replay_buffer.append(exp)
+        self.replay_buffer.append(self.state, action, reward, new_state, done)
 
         self.state = new_state
         if done:
@@ -233,7 +238,7 @@ class DQNLightning(LightningModule):
         self.net = DQN(obs_size, n_actions)
         self.target_net = DQN(obs_size, n_actions)
 
-        self.buffer = ReplayBuffer(self.hparams.replay_size)
+        self.buffer = Memory(self.hparams.replay_size, obs_size)
         self.agent = Agent(self.env, self.buffer)
         self.total_reward = 0
         self.episode_reward = 0
@@ -266,8 +271,6 @@ class DQNLightning(LightningModule):
             total_rewards.append(episode_reward)
         return total_rewards
 
-
-
     def forward(self, x: Tensor) -> Tensor:
         """Passes in a state x through the network and gets the q_values of each action as an output.
 
@@ -290,7 +293,7 @@ class DQNLightning(LightningModule):
             loss
         """
         # print("Im in dqn_mse_loss")
-        states, actions, rewards, dones, next_states = batch
+        states, actions, rewards, dones, next_states, probs, idxs = batch
 
         state_action_values = self.net(states).gather(1, actions.long().unsqueeze(-1)).squeeze(-1)
 
@@ -312,7 +315,6 @@ class DQNLightning(LightningModule):
         if self.global_step > frames:
             return end
         return start + (self.global_step / frames) * (end - start)
-
 
     def training_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         """Carries out a single step through the environment to update the replay buffer. Then calculates loss
