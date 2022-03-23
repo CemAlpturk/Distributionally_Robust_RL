@@ -74,8 +74,9 @@ class Environment:
             self._parse_params(settings)
             
         self.state_size = 4 + self.num_obstacles
-        self.state = self.reset()
+        self.state = None
         self.old_state = None
+        self.state = self.reset()
 
     def reset(self, lamb=20):
         """
@@ -339,7 +340,7 @@ class Environment:
         s = self.old_state
         s_ = self.state
 
-        d_dist = self._dist_to_goal(s_[0, 0:2]) - self._dist_to_goal(s[0, 0:2])
+        d_dist = self._dist_to_goal(s_[0:2]) - self._dist_to_goal(s[0:2])
         reward += d_dist / 100
         # reward = -self._dist_to_goal(s[0:2])/100
         dists = s_[4:]
