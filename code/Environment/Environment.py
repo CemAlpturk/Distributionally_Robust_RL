@@ -75,6 +75,7 @@ class Environment:
             
         self.state_size = 4 + self.num_obstacles
         self.state = self.reset()
+        self.old_state = None
 
     def reset(self, lamb=20):
         """
@@ -115,6 +116,7 @@ class Environment:
 
         # return self.robot.get_state(), self.check_sensors()
         dists = self.get_dists()
+        self.old_state = self.state
         self.state = np.concatenate((self.robot.get_state(), self.goal, dists), dtype=float)
         return self.state.copy()
 
@@ -195,6 +197,7 @@ class Environment:
         end = col or goal
         dist = self.get_dists()
         new_state = np.concatenate((self.robot.get_state(), self.goal, dist), dtype=float)
+        self.old_state = self.state
         self.state = new_state
         reward = self.reward()
 
@@ -332,12 +335,14 @@ class Environment:
         :return:
         """
         # Step cost
-        reward = -0.01
-        s = self.state
-        # d_dist = -self._dist_to_goal(s[0, 0:2])
-        # reward += d_dist / 100
-        reward = -self._dist_to_goal(s[0:2])/100
-        dists = s[4:]
+        reward = -0.1
+        s = self.old_state
+        s_ = self.state
+
+        d_dist = self._dist_to_goal(s_[0, 0:2]) - self._dist_to_goal(s[0, 0:2])
+        reward += d_dist / 100
+        # reward = -self._dist_to_goal(s[0:2])/100
+        dists = s_[4:]
         reward += np.min(dists)/100
         if self.is_collision(s[0:2]):
             reward -= 20
