@@ -57,10 +57,11 @@ class DQN(nn.Module):
         return q_vals
 
 
-def custom_loss(y_preds, targets):
+def custom_loss(y_preds, targets, w):
     idx = torch.nonzero(targets)
     diff = targets[idx[:, 0], idx[:, 1]] - y_preds[idx[:, 0], idx[:, 1]]
-    loss = torch.mean(torch.square(diff))
+    w = torch.Tensor(w)
+    loss = torch.mean(torch.square(torch.dot(diff, w)))
     ps = torch.absolute(diff).detach().numpy()
     return loss, ps
 
@@ -84,7 +85,7 @@ class DRAgent:
 
         self.state_lims = None
         self.normalize = False
-        self.num_states = network_parameters['input_shape'][0]
+        self.num_states = network_parameters['num_states']
         self.env = env
         self.actions = env.action_space
         self.num_actions = self.actions.shape[1]
@@ -163,6 +164,9 @@ class DRAgent:
         }
 
         self.params.update(params)
+        self.learning_rate = learning_rate
+        self.optimizer = torch.optim.Adam(self.q_network.parameters(), lr=self.learning_rate)
+        self.loss_fn = torch.nn.MSELoss()
 
         # Save the training parameters
         self.Logger.log_params(self.params)
@@ -170,8 +174,6 @@ class DRAgent:
         d_lamb = (max_lamb - lamb) / max_episodes
         d_beta = (beta_max - beta0) / max_episodes
         d_eps = (exploration_rate - min_exploration_rate) / max_episodes
-
-        self.learning_rate = learning_rate
 
         if warm_start:
             if timedir is None:
@@ -213,7 +215,7 @@ class DRAgent:
                 t2 = time.time()
 
                 if self.experience.num_elements >= batch_size:
-                    self._experience_replay(batch_size, alpha, beta, discount, 1)
+                    self._experience_replay(batch_size, alpha, beta, discount)
                 t3 = time.time()
 
                 simulation_time += t2 - t1
@@ -268,7 +270,7 @@ class DRAgent:
                 self._align_target_model()
 
             if ep % evaluate_model_period == 0:
-                eval_score = self._evaluate(evaluation_size, max_time_steps, ep, lamb)
+                eval_score = self._evaluate(evaluation_size, max_time_steps, ep, max_lamb)
                 if eval_score > self.best_score:
                     self._save_model("best")
                     self.best_score = eval_score
@@ -285,7 +287,7 @@ class DRAgent:
             if ep % save_animation_period == 0:
                 self.Logger.log_vector_field_animation(self, ep)
 
-    def _experience_replay(self, batch_size, alpha, beta, discount=0.9, epochs=1, ):
+    def _experience_replay(self, batch_size, alpha, beta, discount=0.9):
         """
         TODO: Add summary
         :param batch_size:
@@ -303,8 +305,7 @@ class DRAgent:
         # Build the targets
         targets = self._build_targets(batch_size, states, next_states, rewards, actions, terminated, discount)
 
-        optimizer = torch.optim.Adam(self.q_network.parameters(), lr=self.learning_rate)
-        ps = self._train(states, targets, optimizer)
+        self._train(states, targets, w)
         # history = self.q_network.fit(states,
         #                              targets,
         #                              epochs=epochs,
@@ -314,7 +315,7 @@ class DRAgent:
         # self.episode_loss.append(history.history['loss'][0])
 
         # Update priorities in memory
-        self.experience.update_probs(sample_idx, np.power(ps, alpha))
+        self.experience.update_probs(sample_idx, np.power(sample_ps, alpha))
 
     def _build_targets(
             self,
@@ -338,7 +339,8 @@ class DRAgent:
         """
 
         i = terminated == 0
-        targets = np.zeros((batch_size, self.num_actions))
+        # targets = np.zeros((batch_size, self.num_actions))
+        targets = self._predict(states, q_network=True)
 
         next_q_policy = self._predict(next_states[i, :], q_network=True)
         next_a = np.argmax(next_q_policy, axis=1)
@@ -350,18 +352,17 @@ class DRAgent:
 
         return targets
 
-    def _train(self, states, targets, optimizer):
+    def _train(self, states, targets, w):
         x = torch.Tensor(states)
         y_true = torch.Tensor(targets)
 
         pred = self.q_network(x)
-        loss, ps = custom_loss(pred, y_true)
+        loss = self.loss_fn(pred, y_true)
 
-        optimizer.zero_grad()
+        self.optimizer.zero_grad()
         loss.backward()
-        optimizer.step()
+        self.optimizer.step()
 
-        return ps
 
     def _store(self, state, action, reward, next_state, terminated):
         """
@@ -380,10 +381,11 @@ class DRAgent:
             action = np.random.choice(range(self.num_actions))
             return action
 
-        x = torch.FloatTensor(state)
+        x = torch.Tensor(state)
         q_values = self.q_network(x)
-        action = torch.argmax(q_values).item()
-        return action
+        _, action = torch.max(q_values, dim=1)
+
+        return int(action.item())
 
     def batch_action(self, states):
         """
@@ -391,18 +393,20 @@ class DRAgent:
         :param states:
         :return:
         """
-        x = torch.FloatTensor(states)
-        q_values = self.q_network(x)
-        actions = torch.argmax(q_values, dim=1).detach().numpy()
+        with torch.no_grad():
+            x = torch.Tensor(states)
+            q_values = self.q_network(x)
+            actions = torch.argmax(q_values, dim=1).detach().numpy()
         return actions
 
     def _predict(self, states, q_network=True):
-        x = torch.FloatTensor(states)
-        if q_network:
-            q_vals = self.q_network(x)
-        else:
-            q_vals = self.target_network(x)
-        return q_vals.detach().numpy()
+        with torch.no_grad():
+            x = torch.FloatTensor(states)
+            if q_network:
+                q_vals = self.q_network(x)
+            else:
+                q_vals = self.target_network(x)
+            return q_vals.detach().numpy()
 
     def set_state_lims(self, lims):
         """
@@ -434,8 +438,9 @@ class DRAgent:
         :return:
         """
         print(f"Saving Model '{prefix}'")
-        filepath = os.path.join(self.Logger.model_dir, f"{prefix}/q_network")
-        self.q_network.save(filepath)
+        filepath = os.path.join(self.Logger.model_dir, f"{prefix}.pth")
+        # self.q_network.save(filepath)
+        torch.save(self.q_network.state_dict(), filepath)
 
     def _load_model(self, timedir: str, best: bool = False):
         """
@@ -444,14 +449,16 @@ class DRAgent:
         :return: bool
         """
         if best:
-            filepath = f"Logs/{timedir}/Models/best/q_network"
+            filepath = f"Logs/{timedir}/Models/best.pth"
         else:
-            filepath = f"Logs/{timedir}/Models/latest/q_network"
+            filepath = f"Logs/{timedir}/Models/latest.pth"
 
         # Check if model exists in default directory
         if os.path.exists(filepath):
-            self.q_network = NetworkBuilder.load_model(filepath)
-            self.target_network = NetworkBuilder.load_model(filepath)
+            # self.q_network = NetworkBuilder.load_model(filepath)
+            # self.target_network = NetworkBuilder.load_model(filepath)
+            self.q_network.load_state_dict(torch.load(filepath))
+            self.target_network.load_state_dict(torch.load(filepath))
             print("Models loaded")
             return True
         else:

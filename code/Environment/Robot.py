@@ -75,4 +75,4 @@ class Robot:
         Access the state of the robot
         :return: Numpy array of shape (2,)
         """
-        return self._x.reshape((2,))
+        return self._x.reshape((2,)).copy()

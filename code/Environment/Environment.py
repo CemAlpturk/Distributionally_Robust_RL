@@ -55,7 +55,7 @@ class Environment:
                                   (self.y_max - self.y_min) ** 2)
 
         self.goal = None
-        self.goal_radius = 0.5
+        self.goal_radius = 2
 
         # Obstacles
         if obstacles is None:
@@ -74,6 +74,7 @@ class Environment:
             self._parse_params(settings)
             
         self.state_size = 4 + self.num_obstacles
+        self.state = self.reset()
 
     def reset(self, lamb=20):
         """
@@ -114,7 +115,8 @@ class Environment:
 
         # return self.robot.get_state(), self.check_sensors()
         dists = self.get_dists()
-        return np.concatenate((self.robot.get_state(), self.goal, dists))
+        self.state = np.concatenate((self.robot.get_state(), self.goal, dists), dtype=float)
+        return self.state.copy()
 
     def get_env_parameters(self):
         """
@@ -184,24 +186,19 @@ class Environment:
         """
 
         # Input check
-        assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
+        # assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
+        action = self.action_space[:, [a]]
         w = self._gen_noise()
-        self.robot.step(u=a, w=w)
+        self.robot.step(u=action, w=w)
         col = self.is_collision()
         goal = self.reached_goal()
         end = col or goal
         dist = self.get_dists()
+        new_state = np.concatenate((self.robot.get_state(), self.goal, dist), dtype=float)
+        self.state = new_state
+        reward = self.reward()
 
-        return np.concatenate((self.robot.get_state(), self.goal, dist)), end, goal, col
-
-    # def get_state(self):
-    #     """
-    #     TODO: Return the environments own state s instead of robot state x
-    #     Returns the state of the environment
-    #     :return: Numpy array with shape (2,1)
-    #     """
-    #
-    #     return self.robot.get_state(), self.check_sensors()
+        return self.state.copy(), reward, end, goal, col
 
     def get_dists(self, pos=None):
         """
@@ -216,7 +213,7 @@ class Environment:
         for i in range(self.num_obstacles):
             dist = np.linalg.norm(pos - self.obstacles[i].center, 2)
             dists[i] = dist - self.obstacles[i].radius
-        return np.array(dists)
+        return np.array(dists).copy()
 
     def gen_state(self, pos, goal):
         """
@@ -327,7 +324,7 @@ class Environment:
         #     lims[i + 2, 1] = self.sensor_max
         return lims
 
-    def reward(self, s, s_):
+    def reward(self):
         """
         Dummy function for now
         :param s:
@@ -335,16 +332,17 @@ class Environment:
         :return:
         """
         # Step cost
-        reward = -0.1
-        d_dist = self._dist_to_goal(s_[0, 0:2]) - self._dist_to_goal(s[0, 0:2])
-        reward += d_dist / 10
-        # reward = -self._dist_to_goal(s_[0, 0:2])/100
-        # dists = s_[0, 4:6]
-        # reward += np.min(dists)/100
-        if self.is_collision(s_[0, 0:2]):
+        reward = -0.01
+        s = self.state
+        # d_dist = -self._dist_to_goal(s[0, 0:2])
+        # reward += d_dist / 100
+        reward = -self._dist_to_goal(s[0:2])/100
+        dists = s[4:]
+        reward += np.min(dists)/100
+        if self.is_collision(s[0:2]):
             reward -= 20
 
-        if self.reached_goal(s_[0, 0:2]):
+        if self.reached_goal(s[0:2]):
             reward += 20
 
         return reward

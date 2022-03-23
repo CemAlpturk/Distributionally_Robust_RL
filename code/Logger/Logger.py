@@ -8,7 +8,6 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib
 
-
 from Utilities.plots import plot_vector_field, animate_vector_field
 
 
@@ -32,7 +31,6 @@ class Logger:
         self.model_dir = None
         self._init_directory()
         self.env_params = None
-
 
     def _init_directory(self):
         """
@@ -113,12 +111,10 @@ class Logger:
         env_params = env.get_env_parameters()
         animate_vector_field(env_params, env, agent, self.plots_dir, episode)
 
-
-
     def log_eval(self, episode, score_mean, score_median, score_std):
         with open(self.evals_dir, 'a+', newline='') as write_obj:
             csv_writer = writer(write_obj)
-            csv_writer.writerow([episode,score_mean,score_median,score_std])
+            csv_writer.writerow([episode, score_mean, score_median, score_std])
 
         # Generate plots
         df = pd.read_csv(self.evals_dir)
@@ -189,4 +185,3 @@ class Logger:
         """
         with open(self.training_param_dir, 'w') as fp:
             json.dump(params, fp, indent=2)
-

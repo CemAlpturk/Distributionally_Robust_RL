@@ -1,66 +1,77 @@
+import os
 import numpy as np
-
+import torch
+from pytorch_lightning import Trainer
 from Environment.Environment import Environment
-from Agents.DRAgent import DRAgent
-import tensorflow as tf
-import keras.backend as K
 
-from Utilities import plots
+from Agents.DQNLightning import DQNLightning
+
+
+AVAIL_GPUS = min(1, torch.cuda.device_count())
 
 # Noise dist
-cov = 0.1*np.identity(2)
+cov = 0.1 * np.identity(2)
 num_actions = 8
-obstacles = [([-5, -5], 2), ([5, -5], 2), ([5, 5], 2), ([-5, 5],2)]
-lims = [[-20, 20], [-20, 20]]
-env = Environment(num_actions=num_actions, cov=cov, obstacles=obstacles, lims=lims)
+obstacles = [([-3, 0], 1), ([3, 0], 1)]
+lims = [[-10, 10], [-10, 10]]
+env = Environment(num_actions=num_actions, cov=cov, lims=lims, obstacles=obstacles)
 num_states = env.state_size
 
+model = DQNLightning(env=env,
+                     batch_size=32,
+                     lr=5e-3,
+                     gamma=0.9,
+                     sync_rate=5000,
+                     replay_size=2000,
+                     warm_start_size=1000,
+                     eps_last_frame=800000,
+                     eps_start=1.0,
+                     eps_end=0.1,
+                     episode_length=50,
+                     lamb_min=5.0,
+                     lamb_max=30.0,
+                     lamb_last_frame=800000)
 
-def custom_loss_function(y_true, y_pred):
-    """
-    Only the loss from the taken action affects the loss
-    """
-    # find the nonzero component of y_true
-    idx = K.switch(K.not_equal(y_true, 0.0), y_pred, 0.0)
-    loss = tf.subtract(y_true, idx)
-    return K.square(K.sum(loss))
-
-
-network_parameters = {
-    "input_shape": (num_states,),
-    "layers": [(512, 'relu'), (512, 'relu')],
-    "optimizer": "adam",
-    "learning_rate": 0.0001,
-    "loss_function": "mse",
-    # "loss_function": custom_loss_function,
-    "initializer": tf.keras.initializers.he_uniform(),
-    "dueling": True,
-    "output_size": num_actions
-}
-
-agent = DRAgent(network_parameters, env)
-# agent.set_state_lims(env.get_state_lims())
-agent.train(
-    max_episodes=20000,
-    exploration_rate=1.0,
-    exploration_rate_decay=0.9995,
-    min_exploration_rate=0.1,
-    stochastic=False,
-    discount=0.9,
-    batch_size=32,
-    max_time_steps=40,
-    warm_start=False,
-    best=True,
-    timedir='2022-03-14_16-45-49',
-    model_allignment_period=50,
-    evaluate_model_period=250,
-    evaluation_size=50,
-    lamb=5,
-    d_lamb=0.01,
-    max_lamb=20,
-    render=False,
-    save_animation_period=1000
+trainer = Trainer(
+    gpus=0,
+    max_epochs=1000000,
+    # val_check_interval=1000,
+    check_val_every_n_epoch=10000,
+    # log_every_n_steps=1000
 )
+
+trainer.fit(model)
+
+# network_parameters = {
+#     "num_actions": num_actions,
+#     "num_states": num_states,
+#     "layers": [num_states, 100, 100]
+# }
+
+# agent = DRAgent(network_parameters, env, memory=10000)
+# # agent.set_state_lims(env.get_state_lims())
+# agent.train(
+#     max_episodes=10000,
+#     exploration_rate=1.0,
+#     exploration_rate_decay=0.9995,
+#     min_exploration_rate=0.1,
+#     stochastic=False,
+#     discount=0.9,
+#     batch_size=32,
+#     learning_rate=0.001,
+#     max_time_steps=50,
+#     warm_start=False,
+#     best=True,
+#     timedir='2022-03-14_16-45-49',
+#     model_allignment_period=100,
+#     evaluate_model_period=250,
+#     evaluation_size=50,
+#     lamb=5,
+#     d_lamb=0.01,
+#     max_lamb=40,
+#     render=False,
+#     save_animation_period=10000
+# )
 
 # path = agent.Logger.env_param_dir
 # plots.plot_vector_field(path, env, agent)
