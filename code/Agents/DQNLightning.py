@@ -212,6 +212,10 @@ class DQNLightning(LightningModule):
             batches_per_epoch: int = 1000,
             n_steps: int = 1,
             test_size: int = 50,
+            alpha: float = 0.7,
+            beta0: float = 0.5,
+            beta_max: float = 1.0,
+            beta_last_frame: int = 1000
     ) -> None:
         """
         Args:
@@ -312,7 +316,20 @@ class DQNLightning(LightningModule):
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
-        return nn.MSELoss()(state_action_values, expected_state_action_values)
+        # Weights for the loss
+        beta = self.get_beta()
+        w = torch.pow((self.buffer.size * probs), -beta)
+        w = w / torch.max(w)  # Normalize weights
+
+        # Update priorities
+        err = torch.abs(state_action_values - expected_state_action_values).data.numpy()
+        self.buffer.update_probs(
+            sample_idxs=idxs.data.numpy(),
+            probs=np.power(err, self.hparams.alpha)
+        )
+
+        loss = (w * nn.MSELoss()(state_action_values, expected_state_action_values)).mean()
+        return loss
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
         if self.global_step > frames:
@@ -323,6 +340,11 @@ class DQNLightning(LightningModule):
         if self.global_step > frames:
             return end
         return start + (self.global_step / frames) * (end - start)
+
+    def get_beta(self):
+        beta = self.hparams.beta0 + self.global_step*(self.hparams.beta_max - self.hparams.beta0) / \
+               self.hparams.beta_last_frame
+        return beta
 
     def training_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         """Carries out a single step through the environment to update the replay buffer. Then calculates loss
