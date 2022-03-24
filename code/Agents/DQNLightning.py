@@ -33,6 +33,8 @@ class DQN(nn.Module):
         self.value = nn.Linear(hidden_size, 1)
         self.adv = nn.Linear(hidden_size, n_actions)
 
+        self.apply(self.initialize_weights)
+
     def forward(self, x):
         x = self.fc1(x.float())
         x = self.relu(x)
@@ -50,6 +52,12 @@ class DQN(nn.Module):
         Q = value + adv - adv_average
 
         return Q
+
+    def initialize_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+            # nn.init.kaiming_uniform(m.bias, nonlinearity='relu')
+
 
 
 # Named tuple for storing experience steps gathered in training
@@ -368,7 +376,7 @@ class DQNLightning(LightningModule):
         self.log("lambda", lamb)
 
         # step through environment with agent
-        reward, done, _ = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+        reward, done, goal = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
         self.episode_reward += reward
 
         # calculates training loss
@@ -377,7 +385,7 @@ class DQNLightning(LightningModule):
         # if self.trainer._distrib_type in {DistributedType.DP, DistributedType.DDP2}:
         # loss = loss.unsqueeze(0)
         self.episode_step += 1
-        reset = done or self.episode_step >= self.hparams.episode_length
+        reset = goal or self.episode_step >= self.hparams.episode_length
         if reset:
             self.log("episode reward", self.episode_reward)
             self.total_reward = self.episode_reward
@@ -426,7 +434,7 @@ class DQNLightning(LightningModule):
     def configure_optimizers(self) -> List[Optimizer]:
         """Initialize Adam optimizer."""
         # print("Im in configure_optimizers")
-        optimizer = Adam(self.net.parameters(), lr=self.hparams.lr)
+        optimizer = Adam(self.net.parameters(), lr=self.hparams.lr, eps=1e-07)
         return [optimizer]
 
     def __dataloader(self) -> DataLoader:
