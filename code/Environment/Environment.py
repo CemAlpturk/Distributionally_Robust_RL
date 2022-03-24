@@ -181,7 +181,7 @@ class Environment:
         ind = random.randint(0, action_size - 1)
         return self.action_space[:, [ind]]
 
-    def step(self, a):
+    def step(self, a: int):
         """
         Take a step in the environment and returns the new state of the robot
         :param a: Action, Numpy array of shape (2,1)
@@ -341,10 +341,10 @@ class Environment:
         s_ = self.state
 
         d_dist = self._dist_to_goal(s_[0:2]) - self._dist_to_goal(s[0:2])
-        reward -= d_dist / 100
+        reward -= d_dist / 10
         # reward = -self._dist_to_goal(s[0:2])/100
-        dists = s_[4:]
-        reward += np.min(dists)/100
+        # dists = s_[4:]
+        # reward += np.min(dists)/100
         if self.is_collision(s_[0:2]):
             reward -= 20
 
