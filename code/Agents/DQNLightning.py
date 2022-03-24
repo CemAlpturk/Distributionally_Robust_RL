@@ -1,6 +1,7 @@
 import os
 from collections import OrderedDict, deque, namedtuple
 from typing import Iterator, List, Tuple
+import PIL.Image
 
 import gym
 import numpy as np
@@ -12,8 +13,10 @@ from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import IterableDataset
 
+import tensorflow as tf
+
 from .Memory import Memory
-# from ..Utilities.plots import plot_vector_field
+from Utilities.plots import plot_vector_field, animate_vector_field
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 
@@ -428,7 +431,9 @@ class DQNLightning(LightningModule):
         self.log("avg_test_reward", avg_reward)
 
         # Plot values
-        # fig = plot_vector_field(self.env_params, self.env, self)
+        fig = plot_vector_field(self.env_params, self.env, self)
+        tensorboard = self.logger.experiment
+        tensorboard.add_figure("vector_field", fig, global_step=self.global_step)
         return {"avg_test_reward": avg_reward}
 
     def configure_optimizers(self) -> List[Optimizer]:

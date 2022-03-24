@@ -4,6 +4,7 @@ Contains the necessary functions for the plots
 
 import os
 import json
+import io
 
 import numpy as np
 import pandas as pd
@@ -103,12 +104,14 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
         ax.add_patch(circ)
         obstacles.append(circ)
 
-    if path is not None:
-        plt.savefig(path)
-    if show:
-        plt.show()
+    return fig
 
-    plt.close()
+    # if path is not None:
+    #     plt.savefig(path)
+    # if show:
+    #     plt.show()
+    #
+    # plt.close()
 
 
 def animate_vector_field(params, env, agent, path, episode, steps=30, show=False):
