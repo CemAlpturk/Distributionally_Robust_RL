@@ -174,7 +174,7 @@ class Agent:
             epsilon: float = 0.0,
             lamb: float = 20.0,
             device: str = "cpu",
-    ) -> Tuple[float, bool, bool]:
+    ) -> Tuple[float, bool]:
         """Carries out a single interaction step between the agent and the environment.
 
         Args:
@@ -189,16 +189,16 @@ class Agent:
         action = self.get_action(net, epsilon, device)
 
         # do step in the environment
-        new_state, reward, done, goal, col = self.env.step(action)
+        new_state, reward, done, goal, _ = self.env.step(action)
 
         # exp = Experience(self.state, action, reward, done, new_state)
 
         self.replay_buffer.append(self.state, action, reward, new_state, done)
 
         self.state = new_state
-        if goal:
+        if done:
             self.reset(lamb)
-        return reward, done, goal
+        return reward, done
 
 
 class DQNLightning(LightningModule):
@@ -248,8 +248,11 @@ class DQNLightning(LightningModule):
         self.save_hyperparameters()
 
         self.env = env  # gym.make(self.hparams.env)
-        obs_size = env.state_size  # self.env.observation_space.shape[0]
-        n_actions = env.num_actions  # self.env.action_space.n
+        obs_size = env.state_size
+        n_actions = env.num_actions
+        # obs_size = self.env.observation_space.shape[0]
+        # n_actions = self.env.action_space.n
+
         self.env_params = env.get_env_parameters()
 
         self.net = DQN(obs_size, n_actions)
@@ -281,7 +284,7 @@ class DQNLightning(LightningModule):
             self.agent.reset(lamb=lamb)
             episode_reward = 0.0
             for step in range(self.hparams.episode_length):
-                reward, done, goal = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+                reward, done = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
                 episode_reward += reward
                 if done:
                     break
@@ -321,27 +324,22 @@ class DQNLightning(LightningModule):
             next_state_values[dones] = 0.0
             next_state_values = next_state_values.detach()
 
-        # i = dones == 0
-        # with torch.no_grad():
-        #     targets = self.net(states)
-        #     next_q_policy = self.net(next_states[dones])
-        #     next_a =
-
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
-        # Weights for the loss
-        beta = self.get_beta()
-        w = torch.pow((self.buffer.size * probs), -beta)
-        w = w / torch.max(w)  # Normalize weights
+        # # Weights for the loss
+        # beta = self.get_beta()
+        # w = torch.pow((self.buffer.size * probs), -beta)
+        # w = w / torch.max(w)  # Normalize weights
 
         # Update priorities
-        err = torch.abs(state_action_values - expected_state_action_values).data.numpy()
-        self.buffer.update_probs(
-            sample_idxs=idxs.data.numpy(),
-            probs=np.power(err, self.hparams.alpha)
-        )
+        # err = torch.abs(state_action_values - expected_state_action_values).data.numpy()
+        # self.buffer.update_probs(
+        #     sample_idxs=idxs.data.numpy(),
+        #     probs=np.power(err, self.hparams.alpha)
+        # )
 
-        loss = (w * nn.MSELoss()(state_action_values, expected_state_action_values)).mean()
+        # loss = (w * nn.MSELoss()(state_action_values, expected_state_action_values)).mean()
+        loss = nn.MSELoss()(state_action_values, expected_state_action_values)
         return loss
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
@@ -379,7 +377,7 @@ class DQNLightning(LightningModule):
         self.log("lambda", lamb)
 
         # step through environment with agent
-        reward, done, goal = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+        reward, done = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
         self.episode_reward += reward
 
         # calculates training loss
@@ -388,7 +386,7 @@ class DQNLightning(LightningModule):
         # if self.trainer._distrib_type in {DistributedType.DP, DistributedType.DDP2}:
         # loss = loss.unsqueeze(0)
         self.episode_step += 1
-        reset = goal or self.episode_step >= self.hparams.episode_length
+        reset = done or self.episode_step >= self.hparams.episode_length
         if reset:
             self.log("episode reward", self.episode_reward)
             self.total_reward = self.episode_reward

@@ -56,7 +56,7 @@ class Robot:
         x_new = self._A.dot(self._x) + self._B.dot(u) + w
         self._x = x_new
 
-        return x_new
+        return x_new.reshape(2,)
 
     def set_state(self, x):
         """

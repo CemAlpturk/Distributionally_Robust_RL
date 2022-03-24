@@ -34,7 +34,7 @@ class Environment:
             self.x_min, self.x_max = lims[0]
             self.y_min, self.y_max = lims[1]
 
-        # Generate edges
+        # Generate edges Necessary??
         upper_right = [self.x_max, self.y_max]
         lower_right = [self.x_max, self.y_min]
         lower_left = [self.x_min, self.y_min]
@@ -48,11 +48,9 @@ class Environment:
         self._gen_action_space()
         self.action_shape = (self.action_space.shape[1], 1)
 
-        
-
-        self.sensor_min = 0
-        self.sensor_max = np.sqrt((self.x_max - self.x_min) ** 2 +
-                                  (self.y_max - self.y_min) ** 2)
+        # self.sensor_min = 0
+        # self.sensor_max = np.sqrt((self.x_max - self.x_min) ** 2 +
+        #                           (self.y_max - self.y_min) ** 2)
 
         self.goal = None
         self.goal_radius = 2
@@ -114,9 +112,10 @@ class Environment:
                     check = True
 
         self.goal = goal
+        # self.goal = [0.0, 5.0]
 
         # return self.robot.get_state(), self.check_sensors()
-        dists = self.get_dists()
+        dists = self.get_dists(static_state)
         self.old_state = self.state
         self.state = np.concatenate((self.robot.get_state(), self.goal, dists), dtype=float)
         return self.state.copy()
@@ -164,7 +163,8 @@ class Environment:
         :return: Boolean
         """
         if p is None:
-            p = self.robot.get_state()
+            # p = self.robot.get_state()
+            p = self.state[0:2]
 
         if p[0] <= self.x_min or p[0] >= self.x_max:
             return False
@@ -192,12 +192,12 @@ class Environment:
         # assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
         action = self.action_space[:, [a]]
         w = self._gen_noise()
-        self.robot.step(u=action, w=w)
-        col = self.is_collision()
-        goal = self.reached_goal()
+        new_pos = self.robot.step(u=action, w=w)
+        col = self.is_collision(new_pos)
+        goal = self.reached_goal(new_pos)
         end = col or goal
-        dist = self.get_dists()
-        new_state = np.concatenate((self.robot.get_state(), self.goal, dist), dtype=float)
+        dist = self.get_dists(new_pos)
+        new_state = np.concatenate((new_pos, self.goal, dist), dtype=float)
         self.old_state = self.state
         self.state = new_state
         reward = self.reward()
@@ -211,7 +211,8 @@ class Environment:
         :return:
         """
         if pos is None:
-            pos = self.robot.get_state()
+            # pos = self.robot.get_state()
+            pos = self.state[0:2]
 
         dists = np.zeros(self.num_obstacles, dtype=float)
         for i in range(self.num_obstacles):
@@ -236,7 +237,8 @@ class Environment:
         :return:
         """
         if pos is None:
-            pos = self.robot.get_state()
+            # pos = self.robot.get_state()
+            pos = self.state[0:2]
 
         return np.linalg.norm(pos - self.goal, 2) <= self.goal_radius
 
@@ -246,7 +248,8 @@ class Environment:
         :return: Boolean
         """
         if pos is None:
-            pos = self.robot.get_state().reshape((2,))
+            # pos = self.robot.get_state().reshape((2,))
+            pos = self.state[0:2]
         if rad is None:
             rad = self.robot.radius
         # for obs in self.obstacles:
@@ -336,12 +339,12 @@ class Environment:
         :return:
         """
         # Step cost
-        reward = -0.1
-        s = self.old_state
+        reward = -0.01
+        # s = self.old_state
         s_ = self.state
-
-        d_dist = self._dist_to_goal(s_[0:2]) - self._dist_to_goal(s[0:2])
-        reward -= d_dist / 10
+        reward -= self._dist_to_goal(s_[0:2])/100
+        # d_dist = self._dist_to_goal(s_[0:2]) - self._dist_to_goal(s[0:2])
+        # reward -= d_dist / 10
         # reward = -self._dist_to_goal(s[0:2])/100
         # dists = s_[4:]
         # reward += np.min(dists)/100
