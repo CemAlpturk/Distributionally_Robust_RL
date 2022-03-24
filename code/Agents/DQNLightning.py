@@ -3,7 +3,6 @@ from collections import OrderedDict, deque, namedtuple
 from typing import Iterator, List, Tuple
 import PIL.Image
 
-import gym
 import numpy as np
 import torch
 from pytorch_lightning import LightningModule, Trainer
