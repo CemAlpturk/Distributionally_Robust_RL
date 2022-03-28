@@ -16,6 +16,7 @@ import tensorflow as tf
 
 from .Memory import Memory
 from Utilities.plots import plot_vector_field, animate_vector_field
+from Environment.Environment import Environment
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 
@@ -59,7 +60,6 @@ class DQN(nn.Module):
         if isinstance(m, nn.Linear):
             nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
             # nn.init.kaiming_uniform(m.bias, nonlinearity='relu')
-
 
 
 # Named tuple for storing experience steps gathered in training
@@ -174,7 +174,7 @@ class Agent:
             epsilon: float = 0.0,
             lamb: float = 20.0,
             device: str = "cpu",
-    ) -> Tuple[float, bool]:
+    ) -> Tuple[float, bool, bool]:
         """Carries out a single interaction step between the agent and the environment.
 
         Args:
@@ -279,19 +279,28 @@ class DQNLightning(LightningModule):
         for _ in range(steps):
             self.agent.play_step(self.net, epsilon=1.0, lamb=self.hparams.lamb_min)
 
-    def run_n_episodes(self, n_episodes: int = 1, epsilon: float = 0.0, lamb: float = 30.0, device: str = "cpu"):
+    def run_n_episodes(self,
+                       n_episodes: int = 1,
+                       epsilon: float = 0.0,
+                       lamb: float = 30.0,
+                       device: str = "cpu"):
         total_rewards = []
-        # print("Im in run_n_episodes")
-        for _ in range(n_episodes):
+        trajectory = []
+        for i in range(n_episodes):
             self.agent.reset(lamb=lamb)
+            if i == 0:
+                trajectory.append(self.agent.state.copy())
             episode_reward = 0.0
             for step in range(self.hparams.episode_length):
                 reward, done, _ = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
                 episode_reward += reward
+                if i == 0:
+                    trajectory.append(self.agent.state.copy())
                 if done:
                     break
             total_rewards.append(episode_reward)
-        return total_rewards
+
+        return total_rewards, np.array(trajectory)
 
     def forward(self, x: Tensor) -> Tensor:
         """Passes in a state x through the network and gets the q_values of each action as an output.
@@ -358,7 +367,7 @@ class DQNLightning(LightningModule):
         return start + (self.global_step / frames) * (end - start)
 
     def get_beta(self):
-        beta = self.hparams.beta0 + self.global_step*(self.hparams.beta_max - self.hparams.beta0) / \
+        beta = self.hparams.beta0 + self.global_step * (self.hparams.beta_max - self.hparams.beta0) / \
                self.hparams.beta_last_frame
         return beta
 
@@ -422,9 +431,11 @@ class DQNLightning(LightningModule):
 
     def validation_step(self, *args, **kwargs):
         # print("Im in validation_step")
-        test_reward = self.run_n_episodes(self.hparams.test_size, epsilon=0.0, lamb=self.hparams.lamb_max)
+        test_reward, trajectory = self.run_n_episodes(self.hparams.test_size,
+                                                      epsilon=0.0,
+                                                      lamb=self.hparams.lamb_max)
         avg_reward = np.mean(test_reward)
-        return {"test_reward": avg_reward}
+        return {"test_reward": avg_reward, "trajectory": trajectory}
 
     def validation_step_end(self, outputs):
         """Log the avg of the test results."""
@@ -435,7 +446,8 @@ class DQNLightning(LightningModule):
         self.log("avg_test_reward", avg_reward)
 
         # Plot values
-        fig = plot_vector_field(self.env_params, self.env, self)
+        trajectory = outputs["trajectory"]
+        fig = plot_vector_field(self.env_params, env=self.env, agent=self, trajectory=trajectory)
         tensorboard = self.logger.experiment
         tensorboard.add_figure("vector_field", fig, global_step=self.global_step)
         return {"avg_test_reward": avg_reward}

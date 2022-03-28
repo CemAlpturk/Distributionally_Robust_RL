@@ -14,7 +14,7 @@ import shutil
 from tqdm import tqdm
 
 
-def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None):
+def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None, trajectory=None):
     """
     Plots a vector field containing the actions for a grid
     :param show:
@@ -72,8 +72,11 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
     d_y = params['y_lims'][1] - params['y_lims'][0]
 
     # Check points that fall inside obstacles
-    if goal is None:
+    if trajectory is None:
         goal = np.array([0, 5])
+
+    else:
+        goal = trajectory[0, 2:4]
 
     # Put the states in matrix form
     states = np.zeros((nx * ny, len(params['states'])), dtype=float)
@@ -103,6 +106,13 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
                           edgecolor='k')
         ax.add_patch(circ)
         obstacles.append(circ)
+
+    # Plot trajectories
+    if trajectory is not None:
+        xs = trajectory[:, 0]
+        ys = trajectory[:, 1]
+        ax.plot(xs, ys, 'r-*')
+
 
     return fig
 

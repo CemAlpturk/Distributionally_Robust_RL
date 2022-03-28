@@ -76,6 +76,8 @@ class Environment:
         self.old_state = None
         self.state = self.reset()
 
+
+
     def reset(self, lamb=20):
         """
         Reset the environment
@@ -220,13 +222,15 @@ class Environment:
             dists[i] = dist - self.obstacles[i].radius
         return np.array(dists).copy()
 
-    def gen_state(self, pos, goal):
+    def gen_state(self, pos, goal=None):
         """
         TODO: Add summary
         :param pos:
         :param goal:
         :return:
         """
+        if goal is None:
+            goal = self.goal
         dists = self.get_dists(pos)
         return np.concatenate((pos, goal, dists))
 
