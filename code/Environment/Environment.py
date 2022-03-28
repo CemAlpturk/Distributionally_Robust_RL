@@ -342,17 +342,21 @@ class Environment:
         reward = -0.01
         # s = self.old_state
         s_ = self.state
-        reward -= self._dist_to_goal(s_[0:2])/100
-        # d_dist = self._dist_to_goal(s_[0:2]) - self._dist_to_goal(s[0:2])
-        # reward -= d_dist / 10
-        # reward = -self._dist_to_goal(s[0:2])/100
-        # dists = s_[4:]
-        # reward += np.min(dists)/100
+        
+        # Distance to goal
+        # dist_goal = max(0.1, self._dist_to_goal(s_[0:2]))  # For safety
+        # reward += 1/dist_goal
+        # reward -= dist_goal/10
+        # Distance to obstacles
+        # if self.num_obstacles > 0:
+        #     dist_obs = max(0.1, np.min(s_[4:]))
+        #     # reward -= 1/dist_obs
+        #     reward += dist_obs/10
         if self.is_collision(s_[0:2]):
-            reward -= 20
+            reward -= 10
 
         if self.reached_goal(s_[0:2]):
-            reward += 20
+            reward += 10
 
         return reward
 

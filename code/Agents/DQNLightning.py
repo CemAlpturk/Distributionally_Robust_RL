@@ -111,7 +111,7 @@ class RLDataset(IterableDataset):
         sample_size: number of experiences to sample at a time
     """
 
-    def __init__(self, buffer: Memory, sample_size: int = 2000) -> None:
+    def __init__(self, buffer, sample_size: int = 2000) -> None:
         self.buffer = buffer
         self.sample_size = sample_size
 
@@ -120,6 +120,7 @@ class RLDataset(IterableDataset):
         states, actions, rewards, new_states, dones, probs, idxs = self.buffer.sample(self.sample_size)
         for i in range(len(dones)):
             yield states[i], actions[i], rewards[i], dones[i], new_states[i], probs[i], idxs[i]
+            # yield states[i], actions[i], rewards[i], dones[i], new_states[i]
 
 
 class Agent:
@@ -193,11 +194,12 @@ class Agent:
         # exp = Experience(self.state, action, reward, done, new_state)
 
         self.replay_buffer.append(self.state, action, reward, new_state, done)
+        # self.replay_buffer.append(exp)
 
         self.state = new_state
-        if done:
+        if goal:
             self.reset(lamb)
-        return reward, done
+        return reward, done, goal
 
 
 class DQNLightning(LightningModule):
@@ -258,6 +260,7 @@ class DQNLightning(LightningModule):
         self.target_net = DQN(obs_size, n_actions)
 
         self.buffer = Memory(self.hparams.replay_size, obs_size)
+        # self.buffer = ReplayBuffer(self.hparams.replay_size)
         self.agent = Agent(self.env, self.buffer)
         self.total_reward = 0
         self.episode_reward = 0
@@ -283,7 +286,7 @@ class DQNLightning(LightningModule):
             self.agent.reset(lamb=lamb)
             episode_reward = 0.0
             for step in range(self.hparams.episode_length):
-                reward, done = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+                reward, done, _ = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
                 episode_reward += reward
                 if done:
                     break
@@ -313,6 +316,7 @@ class DQNLightning(LightningModule):
         """
         # print("Im in dqn_mse_loss")
         states, actions, rewards, dones, next_states, probs, idxs = batch
+        # states, actions, rewards, dones, next_states = batch
 
         state_action_values = self.net(states).gather(1, actions.long().unsqueeze(-1)).squeeze(-1)
 
@@ -325,20 +329,22 @@ class DQNLightning(LightningModule):
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
-        # # Weights for the loss
-        # beta = self.get_beta()
-        # w = torch.pow((self.buffer.size * probs), -beta)
-        # w = w / torch.max(w)  # Normalize weights
+        # Weights for the loss
+        beta = self.get_beta()
+        w = torch.pow((self.buffer.size * probs), -beta)
+        w = w / torch.max(w)  # Normalize weights
 
         # Update priorities
-        # err = torch.abs(state_action_values - expected_state_action_values).data.numpy()
-        # self.buffer.update_probs(
-        #     sample_idxs=idxs.data.numpy(),
-        #     probs=np.power(err, self.hparams.alpha)
-        # )
+        err = torch.abs(state_action_values - expected_state_action_values).data.numpy()
+        self.buffer.update_probs(
+            sample_idxs=idxs.data.numpy(),
+            probs=np.power(err, self.hparams.alpha)
+        )
 
         # loss = (w * nn.MSELoss()(state_action_values, expected_state_action_values)).mean()
-        loss = nn.MSELoss()(state_action_values, expected_state_action_values)
+        # loss = nn.MSELoss()(state_action_values, expected_state_action_values)
+        # loss = (w * (state_action_values - expected_state_action_values) ** 2).mean()
+        loss = (w * (state_action_values - expected_state_action_values) ** 2).sum()
         return loss
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
@@ -376,16 +382,17 @@ class DQNLightning(LightningModule):
         self.log("lambda", lamb)
 
         # step through environment with agent
-        reward, done = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+        reward, done, goal = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
         self.episode_reward += reward
 
         # calculates training loss
         loss = self.dqn_mse_loss(batch)
+        self.log("loss", loss)
 
         # if self.trainer._distrib_type in {DistributedType.DP, DistributedType.DDP2}:
         # loss = loss.unsqueeze(0)
         self.episode_step += 1
-        reset = done or self.episode_step >= self.hparams.episode_length
+        reset = goal or self.episode_step >= self.hparams.episode_length
         if reset:
             self.log("episode reward", self.episode_reward)
             self.total_reward = self.episode_reward
