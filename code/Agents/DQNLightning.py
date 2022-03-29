@@ -197,8 +197,8 @@ class Agent:
         # self.replay_buffer.append(exp)
 
         self.state = new_state
-        if goal:
-            self.reset(lamb)
+        # if goal:
+        #     self.reset(lamb)
         return reward, done, goal
 
 
@@ -298,6 +298,7 @@ class DQNLightning(LightningModule):
                     trajectory.append(self.agent.state.copy())
                 if done:
                     break
+            # self.agent.reset(lamb)
             total_rewards.append(episode_reward)
 
         return total_rewards, np.array(trajectory)

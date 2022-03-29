@@ -11,12 +11,12 @@ AVAIL_GPUS = min(1, torch.cuda.device_count())
 # Noise dist
 cov = 0.1 * np.identity(2)
 num_actions = 8
-obstacles = [([-3, 0], 1.5), ([3, 0], 1.5)]
+obstacles = [([-3.5, 0], 1.5), ([3.5, 0], 1.5)]
 lims = [[-10, 10], [-10, 10]]
 env = Environment(num_actions=num_actions, cov=cov, lims=lims, obstacles=obstacles)
 num_states = env.state_size
 
-num_episodes = 50000
+num_episodes = 150000
 episode_length = 50
 num_epochs = num_episodes * episode_length
 frame = int(0.9 * num_epochs)
@@ -26,7 +26,7 @@ model = DQNLightning(env=env,
                      lr=5e-4,
                      gamma=0.9,
                      sync_rate=5000,
-                     replay_size=2000,
+                     replay_size=10000,
                      warm_start_size=1000,
                      eps_last_frame=frame,
                      eps_start=1.0,
@@ -45,8 +45,8 @@ trainer = Trainer(
     gpus=0,
     max_epochs=num_epochs,
     # val_check_interval=1000,
-    check_val_every_n_epoch=10000,
-    log_every_n_steps=1000
+    check_val_every_n_epoch=30000,
+    log_every_n_steps=10000
 )
 
 trainer.fit(model)
