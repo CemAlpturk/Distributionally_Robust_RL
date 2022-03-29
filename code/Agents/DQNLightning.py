@@ -141,7 +141,7 @@ class Agent:
         """Resents the environment and updates the state."""
         self.state = self.env.reset(lamb)
 
-    def get_action(self, net: nn.Module, epsilon: float, device: str) -> int:
+    def get_action(self, net: nn.Module, epsilon: float, device: str, stoch: bool = False) -> int:
         """Using the given network, decide what action to carry out using an epsilon-greedy policy.
 
         Args:
@@ -162,8 +162,17 @@ class Agent:
                 state = state.cuda(device)
 
             q_values = net(state)
-            _, action = torch.max(q_values, dim=1)
-            action = int(action.item())
+
+            # Stochastic
+            if stoch:
+                exp = torch.exp(q_values)
+                probs = (exp / torch.sum(exp)).data.numpy()[0]
+                action = np.random.choice(range(probs.shape[0]), p=probs)
+
+            # Deterministic
+            else:
+                _, action = torch.max(q_values, dim=1)
+                action = int(action.item())
 
         return action
 
@@ -174,6 +183,7 @@ class Agent:
             epsilon: float = 0.0,
             lamb: float = 20.0,
             device: str = "cpu",
+            stoch: bool = False
     ) -> Tuple[float, bool, bool]:
         """Carries out a single interaction step between the agent and the environment.
 
@@ -186,7 +196,7 @@ class Agent:
             reward, done
         """
 
-        action = self.get_action(net, epsilon, device)
+        action = self.get_action(net, epsilon, device, stoch=stoch)
 
         # do step in the environment
         new_state, reward, done, goal, _ = self.env.step(action)
@@ -228,7 +238,8 @@ class DQNLightning(LightningModule):
             alpha: float = 0.7,
             beta0: float = 0.5,
             beta_max: float = 1.0,
-            beta_last_frame: int = 1000
+            beta_last_frame: int = 1000,
+            stochastic: bool = False
     ) -> None:
         """
         Args:
@@ -277,7 +288,10 @@ class DQNLightning(LightningModule):
         """
         # print("Im in populate")
         for _ in range(steps):
-            self.agent.play_step(self.net, epsilon=1.0, lamb=self.hparams.lamb_min)
+            self.agent.play_step(self.net,
+                                 epsilon=1.0,
+                                 lamb=self.hparams.lamb_min,
+                                 stoch=self.hparams.stochastic)
 
     def run_n_episodes(self,
                        n_episodes: int = 1,
@@ -292,7 +306,11 @@ class DQNLightning(LightningModule):
                 trajectory.append(self.agent.state.copy())
             episode_reward = 0.0
             for step in range(self.hparams.episode_length):
-                reward, done, _ = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+                reward, done, _ = self.agent.play_step(self.net,
+                                                       epsilon=epsilon,
+                                                       device=device,
+                                                       lamb=lamb,
+                                                       stoch=self.hparams.stochastic)
                 episode_reward += reward
                 if i == 0:
                     trajectory.append(self.agent.state.copy())
@@ -331,9 +349,19 @@ class DQNLightning(LightningModule):
         state_action_values = self.net(states).gather(1, actions.long().unsqueeze(-1)).squeeze(-1)
 
         with torch.no_grad():
-            next_actions = self.net(next_states).argmax(1)
-            # next_state_values = self.target_net(next_states).max(1)[0]
-            next_state_values = self.target_net(next_states).gather(1, next_actions.unsqueeze(-1)).squeeze(-1)
+            # Deterministic
+            if not self.hparams.stochastic:
+                next_actions = self.net(next_states).argmax(1)
+                # next_state_values = self.target_net(next_states).max(1)[0]
+                next_state_values = self.target_net(next_states).gather(1, next_actions.unsqueeze(-1)).squeeze(-1)
+            else:
+                # Stochastic
+                next_state_values = self.target_net(next_states)
+                exp = torch.exp(next_state_values)
+                sums = torch.reshape(torch.sum(exp, dim=1), (-1,))
+                ps = exp / sums[:, None]   # torch.div(exp, sums)
+                next_state_values = torch.mean(torch.mul(next_state_values, ps), dim=1)
+
             next_state_values[dones] = 0.0
             next_state_values = next_state_values.detach()
 
@@ -353,8 +381,8 @@ class DQNLightning(LightningModule):
 
         # loss = (w * nn.MSELoss()(state_action_values, expected_state_action_values)).mean()
         # loss = nn.MSELoss()(state_action_values, expected_state_action_values)
-        # loss = (w * (state_action_values - expected_state_action_values) ** 2).mean()
-        loss = (w * (state_action_values - expected_state_action_values) ** 2).sum()
+        loss = (w * (state_action_values - expected_state_action_values) ** 2).mean()
+        # loss = (w * (state_action_values - expected_state_action_values) ** 2).sum()
         return loss
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
@@ -392,7 +420,11 @@ class DQNLightning(LightningModule):
         self.log("lambda", lamb)
 
         # step through environment with agent
-        reward, done, goal = self.agent.play_step(self.net, epsilon=epsilon, device=device, lamb=lamb)
+        reward, done, goal = self.agent.play_step(self.net,
+                                                  epsilon=epsilon,
+                                                  device=device,
+                                                  lamb=lamb,
+                                                  stoch=self.hparams.stochastic)
         self.episode_reward += reward
 
         # calculates training loss
