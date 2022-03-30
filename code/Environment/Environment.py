@@ -110,7 +110,7 @@ class Environment:
             # Check if sampled position is lamb close
             d = np.linalg.norm(goal - static_state, 2)
             if d <= lamb:
-                if not self.is_collision(goal, self.goal_radius):
+                if (not self.is_collision(goal, self.goal_radius)) and self.is_inside(goal) :
                     check = True
 
         self.goal = goal
@@ -197,7 +197,8 @@ class Environment:
         new_pos = self.robot.step(u=action, w=w)
         col = self.is_collision(new_pos)
         goal = self.reached_goal(new_pos)
-        end = col or goal
+        border = not self.is_inside(new_pos)
+        end = col or goal or border
         dist = self.get_dists(new_pos)
         new_state = np.concatenate((new_pos, self.goal, dist), dtype=float)
         self.old_state = self.state
@@ -272,7 +273,8 @@ class Environment:
         if np.sum(dists <= rad) > 0:
             return True
 
-        return not self.is_inside(pos)
+        # return not self.is_inside(pos)
+        return False
 
     # def check_sensors(self, p=None):
     #     """
