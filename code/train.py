@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 from Environment.Environment import Environment
 
 from Agents.DQNLightning import DQNLightning
@@ -38,15 +39,35 @@ model = DQNLightning(env=env,
                      alpha=0.7,
                      beta0=0.5,
                      beta_max=1.0,
-                     beta_last_frame=frame
+                     beta_last_frame=frame,
+                     stochastic=True
                      )
 
+# Best model checkpoint
+best_checkpoint = ModelCheckpoint(
+    save_top_k=5,
+    monitor="avg_test_reward",
+    mode="max",
+    # dirpath="models/",
+    filename="best-{episodes_done}-{avg_test_reward}"
+)
+
+# Last model checkpoint
+last_checkpoint = ModelCheckpoint(
+    save_top_k=1,
+    monitor="global_step",
+    mode="max",
+    # dirpath="models/",
+    filename="last-{episodes_done}-{global_step}"
+)
+
 trainer = Trainer(
-    gpus=0,
+    gpus=AVAIL_GPUS,
     max_epochs=num_epochs,
     # val_check_interval=1000,
     check_val_every_n_epoch=30000,
-    log_every_n_steps=10000
+    log_every_n_steps=10000,
+    callbacks=[best_checkpoint, last_checkpoint]
 )
 
 trainer.fit(model)
