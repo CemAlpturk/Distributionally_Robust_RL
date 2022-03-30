@@ -316,9 +316,9 @@ class DQNLightning(LightningModule):
                     trajectory.append(self.agent.state.copy())
                 if done:
                     break
-            # self.agent.reset(lamb)
+            
             total_rewards.append(episode_reward)
-
+        self.agent.reset(lamb)
         return total_rewards, np.array(trajectory)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -381,8 +381,8 @@ class DQNLightning(LightningModule):
 
         # loss = (w * nn.MSELoss()(state_action_values, expected_state_action_values)).mean()
         # loss = nn.MSELoss()(state_action_values, expected_state_action_values)
-        loss = (w * (state_action_values - expected_state_action_values) ** 2).mean()
-        # loss = (w * (state_action_values - expected_state_action_values) ** 2).sum()
+        # loss = (w * (state_action_values - expected_state_action_values) ** 2).mean()
+        loss = (w * (state_action_values - expected_state_action_values) ** 2).sum()
         return loss
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
