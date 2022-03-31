@@ -277,6 +277,7 @@ class DQNLightning(LightningModule):
         self.episode_reward = 0
         self.episode_step = 0
         self.episodes_done = 0
+        self.evals_done = 0
         self.populate(self.hparams.warm_start_steps)
 
     def populate(self, steps: int = 1000) -> None:
@@ -478,6 +479,7 @@ class DQNLightning(LightningModule):
         # avg_reward = sum(rewards) / len(rewards)
         avg_reward = outputs["test_reward"]
         self.log("avg_test_reward", avg_reward)
+        self.log("evals_done", self.evals_done)
 
         # Plot values
         trajectory = outputs["trajectory"]
