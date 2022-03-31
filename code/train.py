@@ -20,7 +20,7 @@ num_states = env.state_size
 num_episodes = 150000
 episode_length = 50
 num_epochs = num_episodes * episode_length
-frame = int(0.9 * num_epochs)
+frame = int(0.75 * num_epochs)
 
 model = DQNLightning(env=env,
                      batch_size=32,
@@ -40,25 +40,25 @@ model = DQNLightning(env=env,
                      beta0=0.5,
                      beta_max=1.0,
                      beta_last_frame=frame,
-                     stochastic=True
+                     stochastic=False
                      )
 
 # Best model checkpoint
 best_checkpoint = ModelCheckpoint(
-    save_top_k=5,
+    save_top_k=1,
     monitor="avg_test_reward",
     mode="max",
     # dirpath="models/",
-    filename="best-{episodes_done}-{avg_test_reward}"
+    filename="best"
 )
 
 # Last model checkpoint
 last_checkpoint = ModelCheckpoint(
     save_top_k=1,
-    monitor="global_step",
+    monitor="evals_done",
     mode="max",
     # dirpath="models/",
-    filename="last-{episodes_done}-{global_step}"
+    filename="last"
 )
 
 trainer = Trainer(
