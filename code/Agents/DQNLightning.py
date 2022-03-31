@@ -12,7 +12,7 @@ from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import IterableDataset
 
-import tensorflow as tf
+# import tensorflow as tf
 
 from .Memory import Memory
 from Utilities.plots import plot_vector_field, animate_vector_field
@@ -430,6 +430,7 @@ class DQNLightning(LightningModule):
         # calculates training loss
         loss = self.dqn_mse_loss(batch)
         self.log("loss", loss)
+        self.log("global_step", self.global_step)
 
         # if self.trainer._distrib_type in {DistributedType.DP, DistributedType.DDP2}:
         # loss = loss.unsqueeze(0)
