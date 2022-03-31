@@ -344,27 +344,56 @@ class Environment:
         :param s_:
         :return:
         """
-        # Step cost
-        reward = -0.01
-        # s = self.old_state
-        s_ = self.state
-        
-        # Distance to goal
-        # dist_goal = max(0.1, self._dist_to_goal(s_[0:2]))  # For safety
-        # reward += 1/dist_goal
-        # reward -= dist_goal/10
-        # Distance to obstacles
-        # if self.num_obstacles > 0:
-        #     dist_obs = max(0.1, np.min(s_[4:]))
-        #     # reward -= 1/dist_obs
-        #     reward += dist_obs/10
-        if self.is_collision(s_[0:2]):
-            reward -= 10
+#         ### Discrete Rewards
+#         # Step cost
+#         reward = -0.01
+#         # s = self.old_state
+#         s_ = self.state
+#         if self.is_collision(s_[0:2]):
+#             reward -= 10
 
-        if self.reached_goal(s_[0:2]):
-            reward += 10
+#         if self.reached_goal(s_[0:2]):
+#             reward += 10
+
+
+        pos = self.state[0:2]
+        goal = self.state[2:4]
+        # Continuous rewards
+        reward = -0.01
+    
+        # Goal position
+        A_g = 10
+        B_g = 9 / (4*self.goal_radius**2)
+        reward += self.gaus(pos, goal, A_g, B_g)
+    
+        # Obstacles
+        for obs in self.obstacles:
+            A_o = -10
+            B_o = 9 / (4*obs.radius**2)
+            reward += self.gaus(pos, obs.center, A_o, B_o)
+        
+        # Borders
+        steep = 10
+        reward += self.sigmoid(pos[0], self.x_min, 1, A_o, steep)
+        reward += self.sigmoid(pos[0], self.x_max, 0, A_o, steep)
+        reward += self.sigmoid(pos[1], self.y_min, 1, A_o, steep)
+        reward += self.sigmoid(pos[1], self.y_max, 0, A_o, steep)
+        
 
         return reward
+    
+    # Helper functions
+    def gaus(self, x, mu, A, B):
+        exponent = -B * (x-mu).dot(x- mu)
+        return A * np.exp(exponent)
+
+    def sigmoid(self, x, shift, inv, A, steep):
+        sig = 1 / (1 + np.exp(-steep*(x - shift)))
+    
+        if inv == 0:
+            return A*sig
+        else:
+            return A * (inv - sig)
 
     def _dist_to_goal(self, pos):
         """
