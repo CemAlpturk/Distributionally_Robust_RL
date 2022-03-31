@@ -362,14 +362,14 @@ class Environment:
         reward = -0.01
     
         # Goal position
-        A_g = 10
-        B_g = 9 / (4*self.goal_radius**2)
+        A_g = 20
+        B_g = 1 / (2*self.goal_radius**2)
         reward += self.gaus(pos, goal, A_g, B_g)
     
         # Obstacles
         for obs in self.obstacles:
-            A_o = -10
-            B_o = 9 / (4*obs.radius**2)
+            A_o = -20
+            B_o = 1 / (2*obs.radius**2)
             reward += self.gaus(pos, obs.center, A_o, B_o)
         
         # Borders
