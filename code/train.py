@@ -10,9 +10,9 @@ from Agents.DQNLightning import DQNLightning
 AVAIL_GPUS = min(1, torch.cuda.device_count())
 
 # Noise dist
-cov = 0.1 * np.identity(2)
+cov = 0.15 * np.identity(2)
 num_actions = 8
-obstacles = [([-3.5, 0], 1.5), ([3.5, 0], 1.5)]
+obstacles = [([-3.5, 0], 2), ([3.5, 0], 2)]
 lims = [[-10, 10], [-10, 10]]
 env = Environment(num_actions=num_actions, cov=cov, lims=lims, obstacles=obstacles)
 num_states = env.state_size
