@@ -362,15 +362,21 @@ class Environment:
         reward = -0.01
     
         # Goal position
-        A_g = 20
-        B_g = 1 / (2*self.goal_radius**2)
-        reward += self.gaus(pos, goal, A_g, B_g)
+        A_g = 10
+        sig = self.goal_radius / 3
+        B_g = 1 / (2*sig**2)
+        # reward += self.gaus(pos, goal, A_g, B_g)
+        dist = self.goal_radius*0.95 - np.linalg.norm(pos-goal, 2)
+        reward += self.tanh(dist, 0.1, A_g)
     
         # Obstacles
         for obs in self.obstacles:
-            A_o = -20
-            B_o = 1 / (2*obs.radius**2)
-            reward += self.gaus(pos, obs.center, A_o, B_o)
+            A_o = -10
+            sig = obs.radius / 2
+            B_o = 1 / (2*sig**2)
+            # reward += self.gaus(pos, obs.center, A_o, B_o)
+            dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
+            reward += self.tanh(dist, 0.1, A_o)
         
         # Borders
         steep = 10
@@ -394,6 +400,9 @@ class Environment:
             return A*sig
         else:
             return A * (inv - sig)
+        
+    def tanh(self, x, d, A):
+        return A * (1 + np.tanh(x/d))/2
 
     def _dist_to_goal(self, pos):
         """
