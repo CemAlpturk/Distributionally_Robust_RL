@@ -77,13 +77,23 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
 
     else:
         goal = trajectory[0, 2:4]
+        obs = trajectory[0, 4:].reshape(-1,)
+
+    # # Obstacle positions
+    # pos_obs = []
+    # for obs in params['obstacles'].values():
+    #     pos_obs.append(obs["center"][0])
+    #     pos_obs.append(obs["center"][1])
+    # pos_obs = np.array(pos_obs)
+
+
 
     # Put the states in matrix form
-    states = np.zeros((nx * ny, len(params['states'])), dtype=float)
+    states = np.zeros((nx * ny, params['state_size']), dtype=float)
     for i in range(nx):
         for j in range(ny):
             pos = np.array([xv[i, j], yv[i, j]])
-            states[i * ny + j] = env.gen_state(pos, goal)
+            states[i * ny + j] = env.gen_state(pos, goal, obs)
 
     # Predict in batch form
     actions = agent.batch_action(states)
@@ -99,9 +109,10 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
 
     ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))
     obstacles = []
-    for obs in params['obstacles'].values():
-        circ = plt.Circle(obs["center"],
-                          radius=obs["radius"],
+    # for obs in env.obstacles:
+    for i in range(int(obs.shape[0]/2)):
+        circ = plt.Circle(obs[2*i:2*i+2],
+                          radius=env.obstacle_rad,
                           facecolor='r',
                           edgecolor='k')
         ax.add_patch(circ)

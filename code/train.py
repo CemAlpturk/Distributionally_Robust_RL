@@ -10,21 +10,23 @@ from Agents.DQNLightning import DQNLightning
 AVAIL_GPUS = min(1, torch.cuda.device_count())
 
 # Noise dist
-cov = 0.15 * np.identity(2)
+cov = 0.1 * np.identity(2)
 num_actions = 8
-obstacles = [([-3.5, 0], 2), ([3.5, 0], 2)]
+# obstacles = [([-3.5, 0], 2), ([3.5, 0], 2)]
+num_obstacles = 3
+obs_rad = 1.5
 lims = [[-10, 10], [-10, 10]]
-env = Environment(num_actions=num_actions, cov=cov, lims=lims, obstacles=obstacles)
+env = Environment(num_actions=num_actions, cov=cov, lims=lims, num_obstacles=num_obstacles, obs_rad=obs_rad)
 num_states = env.state_size
 
-num_episodes = 150000
+num_episodes = 50000
 episode_length = 50
 num_epochs = num_episodes * episode_length
 frame = int(0.75 * num_epochs)
 
 model = DQNLightning(env=env,
                      batch_size=32,
-                     lr=5e-4,
+                     lr=1e-3,
                      gamma=0.9,
                      sync_rate=5000,
                      replay_size=10000,
@@ -65,8 +67,8 @@ trainer = Trainer(
     gpus=AVAIL_GPUS,
     max_epochs=num_epochs,
     # val_check_interval=1000,
-    check_val_every_n_epoch=30000,
-    log_every_n_steps=10000,
+    check_val_every_n_epoch=10000,
+    log_every_n_steps=5000,
     callbacks=[best_checkpoint, last_checkpoint]
 )
 

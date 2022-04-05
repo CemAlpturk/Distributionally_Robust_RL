@@ -13,7 +13,8 @@ class Environment:
                  num_actions=4,
                  mean=np.zeros(2),
                  cov=0 * np.identity(2),
-                 obstacles=None,
+                 num_obstacles=2,
+                 obs_rad=2,
                  lims=None,
                  settings=None):
         """
@@ -48,30 +49,45 @@ class Environment:
         self._gen_action_space()
         self.action_shape = (self.action_space.shape[1], 1)
 
-        # self.sensor_min = 0
-        # self.sensor_max = np.sqrt((self.x_max - self.x_min) ** 2 +
-        #                           (self.y_max - self.y_min) ** 2)
-
         self.goal = None
         self.goal_radius = 2
 
         # Obstacles
-        if obstacles is None:
-            self.num_obstacles = 0
-            self.obstacles = []
-        else:
-            self.num_obstacles = len(obstacles)
-            self.obstacles = []
+        self.num_obstacles = num_obstacles
+        self.obstacle_rad = obs_rad
+        self.obstacles = []
+        for _ in range(self.num_obstacles):
+            self.obstacles.append(Obstacle_Circle(np.array([0, 0]), self.obstacle_rad))
+        # if obstacles is None:
+        #     self.num_obstacles = 0
+        #     self.obstacles = []
+        #     # self.max_rad = None
+        #     # self.obs_x = None
+        #     # self.obs_y = None
+        # else:
+        #     self.num_obstacles = len(obstacles)
+        #     self.obstacles = []
+        #     self.max_rad = 0
+        #
+        #     for center, radius in obstacles:
+        #         obs = Obstacle_Circle(center=center, radius=radius)
+        #         self.obstacles.append(obs)
+        #         # if radius > self.max_rad:
+        #         #     self.max_rad = radius
+        #
+        #     # # Bounding box for obstacles
+        #     # self.obs_box_dims = self._gen_obs_box()
 
-            for center, radius in obstacles:
-                obs = Obstacle_Circle(center=center, radius=radius)
-                self.obstacles.append(obs)
+
+
+
+
 
         # Override default parameters
         if settings is not None:
             self._parse_params(settings)
             
-        self.state_size = 4 + self.num_obstacles
+        self.state_size = 4 + 2 * self.num_obstacles
         self.state = None
         self.old_state = None
         self.state = self.reset()
@@ -81,9 +97,35 @@ class Environment:
     def reset(self, lamb=20):
         """
         Reset the environment
-        TODO: Randomize
         :return: numpy array
         """
+
+        # Generate obstacle positions
+        if self.num_obstacles > 0:
+            obstacles = np.zeros(2*self.num_obstacles)
+            obs_max = 0.9 * np.array([self.x_max, self.y_max]) - self.obstacle_rad
+            obs_min = 0.9 * np.array([self.x_min, self.y_min]) + self.obstacle_rad
+            for i in range(self.num_obstacles):
+                check = False
+                while not check:
+                    obs_pos = np.random.uniform(low=obs_min, high=obs_max)
+                    # Check for collisions with other obstacles
+                    col = False
+                    for j in range(i-1, -1, -1):
+                        dist = np.linalg.norm(obs_pos - self.obstacles[j].center, 2)
+                        if dist <= 2*self.obstacle_rad:
+                            col = True
+                            break
+                    check = not col
+
+                self.obstacles[i] = Obstacle_Circle(obs_pos, self.obstacle_rad)
+                obstacles[2*i:2*i + 2] = obs_pos
+
+
+
+
+
+
         pos_min = [self.x_min, self.y_min]
         pos_max = [self.x_max, self.y_max]
         
@@ -94,14 +136,14 @@ class Environment:
             if not self.is_collision(static_state):
                 check = True
         
-        self.robot.set_state(static_state.reshape(-1,1))
+        self.robot.set_state(static_state.reshape(-1, 1))
 
-        # TODO: Generate goal based on obstacle positions
-        # # distance between pos and goal at most lambda
-        # goal_min = [self.x_min, 0]
-        # goal_max = [self.x_max, self.y_max]
-        goal_min = static_state - lamb
-        goal_max = static_state + lamb
+
+
+
+
+        goal_min = np.minimum(static_state - lamb, np.array([self.x_min, self.y_min]))
+        goal_max = np.maximum(static_state + lamb, np.array([self.x_max, self.y_max]))
         # Not good FIX
         check = False
         while not check:
@@ -119,7 +161,11 @@ class Environment:
         # return self.robot.get_state(), self.check_sensors()
         dists = self.get_dists(static_state)
         self.old_state = self.state
-        self.state = np.concatenate((self.robot.get_state(), self.goal, dists), dtype=float)
+        if self.num_obstacles > 0:
+            self.state = np.concatenate((self.robot.get_state(), self.goal, obstacles), dtype=float)
+        else:
+            self.state = np.concatenate((self.robot.get_state(), self.goal), dtype=float)
+
         return self.state.copy()
 
     def get_env_parameters(self):
@@ -140,6 +186,7 @@ class Environment:
             "num_sensors": self.robot.num_sensors,
             "sensor_angles": self.robot.sensor_angles.tolist(),
             "goal_radius": self.goal_radius,
+            "state_size": self.state_size,
             "states": ['pos_x', 'pos_y', 'goal_x', 'goal_y'],
             "pos_idx": [0, 1],
             "goal_idx": [2, 3],
@@ -199,8 +246,11 @@ class Environment:
         goal = self.reached_goal(new_pos)
         border = not self.is_inside(new_pos)
         end = col or goal or border
-        dist = self.get_dists(new_pos)
-        new_state = np.concatenate((new_pos, self.goal, dist), dtype=float)
+        # dist = self.get_dists(new_pos)
+        if self.num_obstacles > 0:
+            new_state = np.concatenate((new_pos, self.goal, self.state[4:]), dtype=float)
+        else:
+            new_state = np.concatenate((new_pos, self.goal), dtype=float)
         self.old_state = self.state
         self.state = new_state
         reward = self.reward()
@@ -223,7 +273,7 @@ class Environment:
             dists[i] = dist - self.obstacles[i].radius
         return np.array(dists).copy()
 
-    def gen_state(self, pos, goal=None):
+    def gen_state(self, pos, goal=None, obs=None):
         """
         TODO: Add summary
         :param pos:
@@ -232,8 +282,13 @@ class Environment:
         """
         if goal is None:
             goal = self.goal
-        dists = self.get_dists(pos)
-        return np.concatenate((pos, goal, dists))
+        # dists = self.get_dists(pos)
+        if obs is None:
+            obs = np.zeros(2*self.num_obstacles)
+            for i in range(self.num_obstacles):
+                obs[2*i:2*i+2] = self.obstacles[i].center
+
+        return np.concatenate((pos, goal, obs))
 
     def reached_goal(self, pos=None):
         """
@@ -448,6 +503,20 @@ class Environment:
 
     def _gen_noise(self):
         return np.random.multivariate_normal(self.mean, self.cov).reshape((2, 1))
+
+    def _gen_obs_box(self):
+        """
+        Generate bounding box for obstacles
+        :return:
+        """
+        # Calculate positions of obstacles relative to the first obstacle
+        rel_pos = np.zeros((self.num_obstacles, 2), dtype=float)
+        obs_0 = self.obstacles[0].center
+        for i in range(1, self.num_obstacles):
+            rel_pos[i] = self.obstacles[i].center - obs_0
+
+        box_dims = np.max(rel_pos, axis=0) - np.min(rel_pos, axis=0) + self.max_rad
+        return box_dims
 
     def _parse_params(self, params: dict):
         """
