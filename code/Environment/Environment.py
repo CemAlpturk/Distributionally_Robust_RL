@@ -13,8 +13,8 @@ class Environment:
                  num_actions=4,
                  mean=np.zeros(2),
                  cov=0 * np.identity(2),
-                 num_obstacles=2,
-                 obs_rad=2,
+                 obstacles=None,
+                 # obs_rad=2,
                  lims=None,
                  settings=None):
         """
@@ -53,30 +53,29 @@ class Environment:
         self.goal_radius = 2
 
         # Obstacles
-        self.num_obstacles = num_obstacles
-        self.obstacle_rad = obs_rad
-        self.obstacles = []
-        for _ in range(self.num_obstacles):
-            self.obstacles.append(Obstacle_Circle(np.array([0, 0]), self.obstacle_rad))
-        # if obstacles is None:
-        #     self.num_obstacles = 0
-        #     self.obstacles = []
-        #     # self.max_rad = None
-        #     # self.obs_x = None
-        #     # self.obs_y = None
-        # else:
-        #     self.num_obstacles = len(obstacles)
-        #     self.obstacles = []
-        #     self.max_rad = 0
-        #
-        #     for center, radius in obstacles:
-        #         obs = Obstacle_Circle(center=center, radius=radius)
-        #         self.obstacles.append(obs)
-        #         # if radius > self.max_rad:
-        #         #     self.max_rad = radius
-        #
-        #     # # Bounding box for obstacles
-        #     # self.obs_box_dims = self._gen_obs_box()
+        # self.num_obstacles = num_obstacles
+        # self.obstacle_rad = obs_rad
+        # self.obstacles = []
+        # for _ in range(self.num_obstacles):
+            # self.obstacles.append(Obstacle_Circle(np.array([0, 0]), self.obstacle_rad))
+        if obstacles is None:
+            self.num_obstacles = 0
+            self.obstacles = []
+            self.box_max = None
+            self.box_min = None
+            self.obs_rel_pos = None
+        else:
+            self.num_obstacles = len(obstacles)
+            self.obstacles = []
+            self.max_rad = 0
+
+            for center, radius in obstacles:
+                obs = Obstacle_Circle(center=center, radius=radius)
+                self.obstacles.append(obs)
+
+            # Generate box dimensions relative to first obstacle
+            self._process_obstacles()
+            self.obs_rel_pos = self._gen_obs_box()
 
 
 
@@ -103,23 +102,34 @@ class Environment:
         # Generate obstacle positions
         if self.num_obstacles > 0:
             obstacles = np.zeros(2*self.num_obstacles)
-            obs_max = 0.9 * np.array([self.x_max, self.y_max]) - self.obstacle_rad
-            obs_min = 0.9 * np.array([self.x_min, self.y_min]) + self.obstacle_rad
-            for i in range(self.num_obstacles):
-                check = False
-                while not check:
-                    obs_pos = np.random.uniform(low=obs_min, high=obs_max)
-                    # Check for collisions with other obstacles
-                    col = False
-                    for j in range(i-1, -1, -1):
-                        dist = np.linalg.norm(obs_pos - self.obstacles[j].center, 2)
-                        if dist <= 2*self.obstacle_rad:
-                            col = True
-                            break
-                    check = not col
-
-                self.obstacles[i] = Obstacle_Circle(obs_pos, self.obstacle_rad)
-                obstacles[2*i:2*i + 2] = obs_pos
+            obs_min = np.array([self.x_min, self.y_min]) - self.box_min
+            obs_max = np.array([self.x_max, self.y_max]) - self.box_max
+            obs_pos = np.random.uniform(low=obs_min, high=obs_max)
+            self.obstacles[0].center = obs_pos
+            obstacles[0:2] = obs_pos
+            for i in range(1, self.num_obstacles):
+                new_pos = obs_pos + self.obs_rel_pos[i]
+                self.obstacles[i].center = new_pos
+                obstacles[2*i:2*i+2] = new_pos
+        # if self.num_obstacles > 0:
+        #     obstacles = np.zeros(2*self.num_obstacles)
+        #     obs_max = 0.9 * np.array([self.x_max, self.y_max]) - self.obstacle_rad
+        #     obs_min = 0.9 * np.array([self.x_min, self.y_min]) + self.obstacle_rad
+        #     for i in range(self.num_obstacles):
+        #         check = False
+        #         while not check:
+        #             obs_pos = np.random.uniform(low=obs_min, high=obs_max)
+        #             # Check for collisions with other obstacles
+        #             col = False
+        #             for j in range(i-1, -1, -1):
+        #                 dist = np.linalg.norm(obs_pos - self.obstacles[j].center, 2)
+        #                 if dist <= 2*self.obstacle_rad:
+        #                     col = True
+        #                     break
+        #             check = not col
+        #
+        #         self.obstacles[i] = Obstacle_Circle(obs_pos, self.obstacle_rad)
+        #         obstacles[2*i:2*i + 2] = obs_pos
 
 
 
@@ -515,8 +525,35 @@ class Environment:
         for i in range(1, self.num_obstacles):
             rel_pos[i] = self.obstacles[i].center - obs_0
 
-        box_dims = np.max(rel_pos, axis=0) - np.min(rel_pos, axis=0) + self.max_rad
-        return box_dims
+        # box_dims = np.max(rel_pos, axis=0) - np.min(rel_pos, axis=0) + self.max_rad
+        # return box_dims
+        return rel_pos
+
+    def _process_obstacles(self):
+        """
+        Compute obstacle locations with respect to the first obstacle
+        Generate limits for randomization for the first obstacle (obstacles move together)
+        :return:
+        """
+        obs_0 = self.obstacles[0]
+        # box_max = obs_0.center + obs_0.radius
+        # box_min = obs_0.center - obs_0.radius
+        box_max = np.ones(2) * obs_0.radius
+        box_min = -np.ones(2) * obs_0.radius
+        # x_max = obs_0.center[0] + obs_0.radius
+        # x_min = obs_0.center[0] - obs_0.radius
+        # y_max = obs_0.center[1] + obs_0.radius
+        # y_min = obs_0.center[1] - obs_0.radius
+
+        for i in range(1, self.num_obstacles):
+            obs = self.obstacles[i]
+            diff = obs.center - obs_0.center
+            box_max = np.maximum(diff + obs.radius, box_max)
+            box_min = np.minimum(diff - obs.radius, box_min)
+
+        self.box_max = box_max
+        self.box_min = box_min
+
 
     def _parse_params(self, params: dict):
         """

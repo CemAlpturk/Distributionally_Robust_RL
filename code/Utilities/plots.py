@@ -112,7 +112,7 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
     # for obs in env.obstacles:
     for i in range(int(obs.shape[0]/2)):
         circ = plt.Circle(obs[2*i:2*i+2],
-                          radius=env.obstacle_rad,
+                          radius=2,     # TODO: Fix
                           facecolor='r',
                           edgecolor='k')
         ax.add_patch(circ)
