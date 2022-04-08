@@ -4,6 +4,7 @@ Contains the necessary functions for the plots
 
 import os
 import json
+import io
 
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ import shutil
 from tqdm import tqdm
 
 
-def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None):
+def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None, trajectory=None):
     """
     Plots a vector field containing the actions for a grid
     :param show:
@@ -71,15 +72,28 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
     d_y = params['y_lims'][1] - params['y_lims'][0]
 
     # Check points that fall inside obstacles
-    if goal is None:
+    if trajectory is None:
         goal = np.array([0, 5])
 
+    else:
+        goal = trajectory[0, 2:4]
+        obs = trajectory[0, 4:].reshape(-1,)
+
+    # # Obstacle positions
+    # pos_obs = []
+    # for obs in params['obstacles'].values():
+    #     pos_obs.append(obs["center"][0])
+    #     pos_obs.append(obs["center"][1])
+    # pos_obs = np.array(pos_obs)
+
+
+
     # Put the states in matrix form
-    states = np.zeros((nx * ny, len(params['states'])), dtype=float)
+    states = np.zeros((nx * ny, params['state_size']), dtype=float)
     for i in range(nx):
         for j in range(ny):
             pos = np.array([xv[i, j], yv[i, j]])
-            states[i * ny + j] = env.gen_state(pos, goal)
+            states[i * ny + j] = env.gen_state(pos, goal, obs)
 
     # Predict in batch form
     actions = agent.batch_action(states)
@@ -90,25 +104,35 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
         dx = action[0] / d_x
         dy = action[1] / d_y
 
-        arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.05)
+        arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.1)
         ax.add_patch(arrow)
 
     ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))
     obstacles = []
-    for obs in params['obstacles'].values():
-        circ = plt.Circle(obs["center"],
-                          radius=obs["radius"],
+    # for obs in env.obstacles:
+    for i in range(int(obs.shape[0]/2)):
+        circ = plt.Circle(obs[2*i:2*i+2],
+                          radius=2,     # TODO: Fix
                           facecolor='r',
                           edgecolor='k')
         ax.add_patch(circ)
         obstacles.append(circ)
 
-    if path is not None:
-        plt.savefig(path)
-    if show:
-        plt.show()
+    # Plot trajectories
+    if trajectory is not None:
+        xs = trajectory[:, 0]
+        ys = trajectory[:, 1]
+        ax.plot(xs, ys, 'r-*')
 
-    plt.close()
+
+    return fig
+
+    # if path is not None:
+    #     plt.savefig(path)
+    # if show:
+    #     plt.show()
+    #
+    # plt.close()
 
 
 def animate_vector_field(params, env, agent, path, episode, steps=30, show=False):

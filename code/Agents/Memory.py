@@ -84,7 +84,7 @@ class SumTree:
 
 
 class Memory:
-    def __init__(self, size: int, state_size: int):
+    def __init__(self, size: int, state_size: int) -> None:
         """
         TODO: Add summary
         :param size:
@@ -92,11 +92,11 @@ class Memory:
         self.size = size
         self.state_size = state_size
 
-        self.states = np.zeros((self.size, self.state_size), dtype=float)
-        self.next_states = np.zeros((self.size, self.state_size), dtype=float)
-        self.actions = np.zeros(self.size, dtype=int)
-        self.rewards = np.zeros(self.size, dtype=float)
-        self.terminated = np.zeros(self.size, dtype=bool)
+        self.states = np.zeros((self.size, self.state_size))
+        self.next_states = np.zeros((self.size, self.state_size))
+        self.actions = np.zeros(self.size)
+        self.rewards = np.zeros(self.size, dtype=np.float32)
+        self.terminated = np.zeros(self.size, dtype=np.bool)
         self.ps = np.zeros(self.size, dtype=float)
 
         self.idx = 0  # Current empty slot
@@ -105,6 +105,9 @@ class Memory:
         self.p_sum = 0
 
         self.tree = SumTree(self.ps)
+
+    def __len__(self) -> int:
+        return self.num_elements
 
     def append(self, state, action: int, reward: float, next_state, terminated: bool):
         """

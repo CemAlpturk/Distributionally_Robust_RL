@@ -14,6 +14,7 @@ class Environment:
                  mean=np.zeros(2),
                  cov=0 * np.identity(2),
                  obstacles=None,
+                 # obs_rad=2,
                  lims=None,
                  settings=None):
         """
@@ -34,7 +35,7 @@ class Environment:
             self.x_min, self.x_max = lims[0]
             self.y_min, self.y_max = lims[1]
 
-        # Generate edges
+        # Generate edges Necessary??
         upper_right = [self.x_max, self.y_max]
         lower_right = [self.x_max, self.y_min]
         lower_left = [self.x_min, self.y_min]
@@ -48,73 +49,143 @@ class Environment:
         self._gen_action_space()
         self.action_shape = (self.action_space.shape[1], 1)
 
-        
-
-        self.sensor_min = 0
-        self.sensor_max = np.sqrt((self.x_max - self.x_min) ** 2 +
-                                  (self.y_max - self.y_min) ** 2)
-
         self.goal = None
-        self.goal_radius = 0.5
+        self.goal_radius = 2
 
         # Obstacles
+        # self.num_obstacles = num_obstacles
+        # self.obstacle_rad = obs_rad
+        # self.obstacles = []
+        # for _ in range(self.num_obstacles):
+            # self.obstacles.append(Obstacle_Circle(np.array([0, 0]), self.obstacle_rad))
         if obstacles is None:
             self.num_obstacles = 0
             self.obstacles = []
+            self.box_max = None
+            self.box_min = None
+            self.obs_rel_pos = None
         else:
             self.num_obstacles = len(obstacles)
             self.obstacles = []
+            self.max_rad = 0
 
             for center, radius in obstacles:
                 obs = Obstacle_Circle(center=center, radius=radius)
                 self.obstacles.append(obs)
 
+            # Generate box dimensions relative to first obstacle
+            self._process_obstacles()
+            self.obs_rel_pos = self._gen_obs_box()
+
+
+
+
+
+
         # Override default parameters
         if settings is not None:
             self._parse_params(settings)
             
-        self.state_size = 4 + self.num_obstacles
+        self.state_size = 4 + 2 * self.num_obstacles
+        self.state = None
+        self.old_state = None
+        self.state = self.reset()
+
+
 
     def reset(self, lamb=20):
         """
         Reset the environment
-        TODO: Randomize
         :return: numpy array
         """
+
+        # Generate obstacle positions
+        if self.num_obstacles > 0:
+            obstacles = np.zeros(2*self.num_obstacles)
+            obs_min = np.array([self.x_min, self.y_min]) - self.box_min
+            obs_max = np.array([self.x_max, self.y_max]) - self.box_max
+            obs_pos = np.random.uniform(low=obs_min, high=obs_max)
+            self.obstacles[0].center = obs_pos
+            obstacles[0:2] = obs_pos
+            for i in range(1, self.num_obstacles):
+                new_pos = obs_pos + self.obs_rel_pos[i]
+                self.obstacles[i].center = new_pos
+                obstacles[2*i:2*i+2] = new_pos
+        # if self.num_obstacles > 0:
+        #     obstacles = np.zeros(2*self.num_obstacles)
+        #     obs_max = 0.9 * np.array([self.x_max, self.y_max]) - self.obstacle_rad
+        #     obs_min = 0.9 * np.array([self.x_min, self.y_min]) + self.obstacle_rad
+        #     for i in range(self.num_obstacles):
+        #         check = False
+        #         while not check:
+        #             obs_pos = np.random.uniform(low=obs_min, high=obs_max)
+        #             # Check for collisions with other obstacles
+        #             col = False
+        #             for j in range(i-1, -1, -1):
+        #                 dist = np.linalg.norm(obs_pos - self.obstacles[j].center, 2)
+        #                 if dist <= 2*self.obstacle_rad:
+        #                     col = True
+        #                     break
+        #             check = not col
+        #
+        #         self.obstacles[i] = Obstacle_Circle(obs_pos, self.obstacle_rad)
+        #         obstacles[2*i:2*i + 2] = obs_pos
+
+
+
+
+
+
         pos_min = [self.x_min, self.y_min]
         pos_max = [self.x_max, self.y_max]
         
         # Check for collisions
         check = False
+        num = 0
         while not check:
             static_state = np.random.uniform(low=pos_min, high=pos_max)
             if not self.is_collision(static_state):
                 check = True
+            num += 1
+            if num > 1000:
+                return self.reset(lamb)
+                
         
-        self.robot.set_state(static_state.reshape(-1,1))
+        self.robot.set_state(static_state.reshape(-1, 1))
 
-        # TODO: Generate goal based on obstacle positions
-        # # distance between pos and goal at most lambda
-        # goal_min = [self.x_min, 0]
-        # goal_max = [self.x_max, self.y_max]
-        goal_min = static_state - lamb
-        goal_max = static_state + lamb
+
+
+
+
+        goal_min = np.minimum(static_state - lamb, np.array([self.x_min, self.y_min]))
+        goal_max = np.maximum(static_state + lamb, np.array([self.x_max, self.y_max]))
         # Not good FIX
         check = False
+        num = 0
         while not check:
             goal = np.random.uniform(low=goal_min, high=goal_max)
             
             # Check if sampled position is lamb close
             d = np.linalg.norm(goal - static_state, 2)
             if d <= lamb:
-                if not self.is_collision(goal, self.goal_radius):
+                if (not self.is_collision(goal, self.goal_radius)) and self.is_inside(goal) :
                     check = True
+            num += 1
+            if num > 1000:
+                return self.reset(lamb)
 
         self.goal = goal
+        # self.goal = [0.0, 5.0]
 
         # return self.robot.get_state(), self.check_sensors()
-        dists = self.get_dists()
-        return np.concatenate((self.robot.get_state(), self.goal, dists))
+        dists = self.get_dists(static_state)
+        self.old_state = self.state
+        if self.num_obstacles > 0:
+            self.state = np.concatenate((self.robot.get_state(), self.goal, obstacles), dtype=float)
+        else:
+            self.state = np.concatenate((self.robot.get_state(), self.goal), dtype=float)
+
+        return self.state.copy()
 
     def get_env_parameters(self):
         """
@@ -134,6 +205,7 @@ class Environment:
             "num_sensors": self.robot.num_sensors,
             "sensor_angles": self.robot.sensor_angles.tolist(),
             "goal_radius": self.goal_radius,
+            "state_size": self.state_size,
             "states": ['pos_x', 'pos_y', 'goal_x', 'goal_y'],
             "pos_idx": [0, 1],
             "goal_idx": [2, 3],
@@ -159,7 +231,8 @@ class Environment:
         :return: Boolean
         """
         if p is None:
-            p = self.robot.get_state()
+            # p = self.robot.get_state()
+            p = self.state[0:2]
 
         if p[0] <= self.x_min or p[0] >= self.x_max:
             return False
@@ -176,7 +249,7 @@ class Environment:
         ind = random.randint(0, action_size - 1)
         return self.action_space[:, [ind]]
 
-    def step(self, a):
+    def step(self, a: int):
         """
         Take a step in the environment and returns the new state of the robot
         :param a: Action, Numpy array of shape (2,1)
@@ -184,24 +257,24 @@ class Environment:
         """
 
         # Input check
-        assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
+        # assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
+        action = self.action_space[:, [a]]
         w = self._gen_noise()
-        self.robot.step(u=a, w=w)
-        col = self.is_collision()
-        goal = self.reached_goal()
-        end = col or goal
-        dist = self.get_dists()
+        new_pos = self.robot.step(u=action, w=w)
+        col = self.is_collision(new_pos)
+        goal = self.reached_goal(new_pos)
+        border = not self.is_inside(new_pos)
+        end = col or goal or border
+        # dist = self.get_dists(new_pos)
+        if self.num_obstacles > 0:
+            new_state = np.concatenate((new_pos, self.goal, self.state[4:]), dtype=float)
+        else:
+            new_state = np.concatenate((new_pos, self.goal), dtype=float)
+        self.old_state = self.state
+        self.state = new_state
+        reward = self.reward()
 
-        return np.concatenate((self.robot.get_state(), self.goal, dist)), end, goal, col
-
-    # def get_state(self):
-    #     """
-    #     TODO: Return the environments own state s instead of robot state x
-    #     Returns the state of the environment
-    #     :return: Numpy array with shape (2,1)
-    #     """
-    #
-    #     return self.robot.get_state(), self.check_sensors()
+        return self.state.copy(), reward, end, goal, col
 
     def get_dists(self, pos=None):
         """
@@ -210,23 +283,31 @@ class Environment:
         :return:
         """
         if pos is None:
-            pos = self.robot.get_state()
+            # pos = self.robot.get_state()
+            pos = self.state[0:2]
 
         dists = np.zeros(self.num_obstacles, dtype=float)
         for i in range(self.num_obstacles):
             dist = np.linalg.norm(pos - self.obstacles[i].center, 2)
             dists[i] = dist - self.obstacles[i].radius
-        return np.array(dists)
+        return np.array(dists).copy()
 
-    def gen_state(self, pos, goal):
+    def gen_state(self, pos, goal=None, obs=None):
         """
         TODO: Add summary
         :param pos:
         :param goal:
         :return:
         """
-        dists = self.get_dists(pos)
-        return np.concatenate((pos, goal, dists))
+        if goal is None:
+            goal = self.goal
+        # dists = self.get_dists(pos)
+        if obs is None:
+            obs = np.zeros(2*self.num_obstacles)
+            for i in range(self.num_obstacles):
+                obs[2*i:2*i+2] = self.obstacles[i].center
+
+        return np.concatenate((pos, goal, obs))
 
     def reached_goal(self, pos=None):
         """
@@ -235,7 +316,8 @@ class Environment:
         :return:
         """
         if pos is None:
-            pos = self.robot.get_state()
+            # pos = self.robot.get_state()
+            pos = self.state[0:2]
 
         return np.linalg.norm(pos - self.goal, 2) <= self.goal_radius
 
@@ -245,7 +327,8 @@ class Environment:
         :return: Boolean
         """
         if pos is None:
-            pos = self.robot.get_state().reshape((2,))
+            # pos = self.robot.get_state().reshape((2,))
+            pos = self.state[0:2]
         if rad is None:
             rad = self.robot.radius
         # for obs in self.obstacles:
@@ -264,7 +347,8 @@ class Environment:
         if np.sum(dists <= rad) > 0:
             return True
 
-        return not self.is_inside(pos)
+        # return not self.is_inside(pos)
+        return False
 
     # def check_sensors(self, p=None):
     #     """
@@ -327,27 +411,72 @@ class Environment:
         #     lims[i + 2, 1] = self.sensor_max
         return lims
 
-    def reward(self, s, s_):
+    def reward(self):
         """
         Dummy function for now
         :param s:
         :param s_:
         :return:
         """
-        # Step cost
-        reward = -0.1
-        d_dist = self._dist_to_goal(s_[0, 0:2]) - self._dist_to_goal(s[0, 0:2])
-        reward += d_dist / 10
-        # reward = -self._dist_to_goal(s_[0, 0:2])/100
-        # dists = s_[0, 4:6]
-        # reward += np.min(dists)/100
-        if self.is_collision(s_[0, 0:2]):
-            reward -= 20
+#         ### Discrete Rewards
+#         # Step cost
+#         reward = -0.01
+#         # s = self.old_state
+#         s_ = self.state
+#         if self.is_collision(s_[0:2]):
+#             reward -= 10
 
-        if self.reached_goal(s_[0, 0:2]):
-            reward += 20
+#         if self.reached_goal(s_[0:2]):
+#             reward += 10
+
+
+        pos = self.state[0:2]
+        goal = self.state[2:4]
+        # Continuous rewards
+        reward = -0.01
+    
+        # Goal position
+        A_g = 10
+        sig = self.goal_radius / 3
+        B_g = 1 / (2*sig**2)
+        # reward += self.gaus(pos, goal, A_g, B_g)
+        dist = self.goal_radius*0.95 - np.linalg.norm(pos-goal, 2)
+        reward += self.tanh(dist, 0.1, A_g)
+    
+        # Obstacles
+        for obs in self.obstacles:
+            A_o = -10
+            sig = obs.radius / 2
+            B_o = 1 / (2*sig**2)
+            # reward += self.gaus(pos, obs.center, A_o, B_o)
+            dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
+            reward += self.tanh(dist, 0.1, A_o)
+        
+        # Borders
+        steep = 10
+        reward += self.sigmoid(pos[0], self.x_min, 1, A_o, steep)
+        reward += self.sigmoid(pos[0], self.x_max, 0, A_o, steep)
+        reward += self.sigmoid(pos[1], self.y_min, 1, A_o, steep)
+        reward += self.sigmoid(pos[1], self.y_max, 0, A_o, steep)
+        
 
         return reward
+    
+    # Helper functions
+    def gaus(self, x, mu, A, B):
+        exponent = -B * (x-mu).dot(x- mu)
+        return A * np.exp(exponent)
+
+    def sigmoid(self, x, shift, inv, A, steep):
+        sig = 1 / (1 + np.exp(-steep*(x - shift)))
+    
+        if inv == 0:
+            return A*sig
+        else:
+            return A * (inv - sig)
+        
+    def tanh(self, x, d, A):
+        return A * (1 + np.tanh(x/d))/2
 
     def _dist_to_goal(self, pos):
         """
@@ -393,6 +522,47 @@ class Environment:
 
     def _gen_noise(self):
         return np.random.multivariate_normal(self.mean, self.cov).reshape((2, 1))
+
+    def _gen_obs_box(self):
+        """
+        Generate bounding box for obstacles
+        :return:
+        """
+        # Calculate positions of obstacles relative to the first obstacle
+        rel_pos = np.zeros((self.num_obstacles, 2), dtype=float)
+        obs_0 = self.obstacles[0].center
+        for i in range(1, self.num_obstacles):
+            rel_pos[i] = self.obstacles[i].center - obs_0
+
+        # box_dims = np.max(rel_pos, axis=0) - np.min(rel_pos, axis=0) + self.max_rad
+        # return box_dims
+        return rel_pos
+
+    def _process_obstacles(self):
+        """
+        Compute obstacle locations with respect to the first obstacle
+        Generate limits for randomization for the first obstacle (obstacles move together)
+        :return:
+        """
+        obs_0 = self.obstacles[0]
+        # box_max = obs_0.center + obs_0.radius
+        # box_min = obs_0.center - obs_0.radius
+        box_max = np.ones(2) * obs_0.radius
+        box_min = -np.ones(2) * obs_0.radius
+        # x_max = obs_0.center[0] + obs_0.radius
+        # x_min = obs_0.center[0] - obs_0.radius
+        # y_max = obs_0.center[1] + obs_0.radius
+        # y_min = obs_0.center[1] - obs_0.radius
+
+        for i in range(1, self.num_obstacles):
+            obs = self.obstacles[i]
+            diff = obs.center - obs_0.center
+            box_max = np.maximum(diff + obs.radius, box_max)
+            box_min = np.minimum(diff - obs.radius, box_min)
+
+        self.box_max = box_max
+        self.box_min = box_min
+
 
     def _parse_params(self, params: dict):
         """

@@ -56,7 +56,7 @@ class Robot:
         x_new = self._A.dot(self._x) + self._B.dot(u) + w
         self._x = x_new
 
-        return x_new
+        return x_new.reshape(2,)
 
     def set_state(self, x):
         """
@@ -75,4 +75,4 @@ class Robot:
         Access the state of the robot
         :return: Numpy array of shape (2,)
         """
-        return self._x.reshape((2,))
+        return self._x.reshape((2,)).copy()
