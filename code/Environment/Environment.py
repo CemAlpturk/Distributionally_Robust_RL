@@ -141,10 +141,15 @@ class Environment:
         
         # Check for collisions
         check = False
+        num = 0
         while not check:
             static_state = np.random.uniform(low=pos_min, high=pos_max)
             if not self.is_collision(static_state):
                 check = True
+            num += 1
+            if num > 1000:
+                return self.reset(lamb)
+                
         
         self.robot.set_state(static_state.reshape(-1, 1))
 
@@ -156,6 +161,7 @@ class Environment:
         goal_max = np.maximum(static_state + lamb, np.array([self.x_max, self.y_max]))
         # Not good FIX
         check = False
+        num = 0
         while not check:
             goal = np.random.uniform(low=goal_min, high=goal_max)
             
@@ -164,6 +170,9 @@ class Environment:
             if d <= lamb:
                 if (not self.is_collision(goal, self.goal_radius)) and self.is_inside(goal) :
                     check = True
+            num += 1
+            if num > 1000:
+                return self.reset(lamb)
 
         self.goal = goal
         # self.goal = [0.0, 5.0]
