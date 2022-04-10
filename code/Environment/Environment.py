@@ -199,6 +199,7 @@ class Environment:
             "goal_y_lims": [self.y_min, 0],
             # "action_space": dict(zip(range(self.action_space.shape[1]),self.action_space)),
             "action_space": self.action_space.T.tolist(),
+            "num_actions": self.num_actions,
             "num_obstacles": self.num_obstacles,
             "obstacles": {},
             "robot_radius": self.robot.radius,

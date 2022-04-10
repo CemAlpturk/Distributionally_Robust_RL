@@ -14,7 +14,7 @@ import shutil
 from tqdm import tqdm
 
 
-def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None, trajectory=None):
+def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None, trajectory=None, heatmap=True):
     """
     Plots a vector field containing the actions for a grid
     :param show:
@@ -61,12 +61,7 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
         # ax.add_patch(line)
         goal = data[np.array(params['states'])[params['goal_idx']]].to_numpy()[0]
 
-    # Create grid
-    nx = 20  # int(params['x_lims'][1] - params['x_lims'][0])   # number of points n^2
-    ny = 20  # int(params['y_lims'][1] - params['y_lims'][0])
-    x = np.linspace(params['x_lims'][0], params['x_lims'][1], nx)
-    y = np.linspace(params['y_lims'][0], params['y_lims'][1], ny)
-    xv, yv = np.meshgrid(x, y, indexing='ij')
+
 
     d_x = params['x_lims'][1] - params['x_lims'][0]
     d_y = params['y_lims'][1] - params['y_lims'][0]
@@ -79,12 +74,46 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
         goal = trajectory[0, 2:4]
         obs = trajectory[0, 4:].reshape(-1,)
 
-    # # Obstacle positions
-    # pos_obs = []
-    # for obs in params['obstacles'].values():
-    #     pos_obs.append(obs["center"][0])
-    #     pos_obs.append(obs["center"][1])
-    # pos_obs = np.array(pos_obs)
+
+    if heatmap:
+        # Generate grid for heatmap
+        n = 200
+        x = np.linspace(params['x_lims'][0], params['x_lims'][1], n)
+        y = np.linspace(params['y_lims'][0], params['y_lims'][1], n)
+
+        xx, yy = np.meshgrid(x, y, indexing='ij')
+
+        states = np.zeros((n**2, params['state_size']), dtype=float)
+        for i in range(n):
+            for j in range(n):
+                pos = np.array([xx[i, j], yy[i, j]])
+                states[i * n + j] = env.gen_state(pos, goal, obs)
+
+        # Predict in batch form
+        acts = agent.batch_action(states)
+        actions = np.zeros(xx.shape, dtype=int)
+        num_actions = params['num_actions']
+        for i in range(n):
+            for j in range(n):
+                actions[i, j] = acts[i*n + j]
+
+
+        # ax.imshow(actions, cmap='hsv', alpha=0.4)
+        c = ax.pcolormesh(xx, yy, actions, cmap=plt.cm.get_cmap('jet', num_actions), alpha=0.4, vmin=0, vmax=num_actions-1)
+        cbar = fig.colorbar(c, ticks=range(num_actions), ax=ax)
+        cbar.ax.set_ylabel('Actions')
+        c.set_clim(-0.5, num_actions-0.5)
+
+
+
+
+    # Create grid
+    nx = 20  # int(params['x_lims'][1] - params['x_lims'][0])   # number of points n^2
+    ny = 20  # int(params['y_lims'][1] - params['y_lims'][0])
+    x = np.linspace(params['x_lims'][0], params['x_lims'][1], nx)
+    y = np.linspace(params['y_lims'][0], params['y_lims'][1], ny)
+    xv, yv = np.meshgrid(x, y, indexing='ij')
+
 
 
 
