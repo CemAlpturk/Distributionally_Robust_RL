@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-from Environment.Environment import Environment
+from Environments.Environment import Environment
 
 from Agents.DQNLightning import DQNLightning
 
@@ -19,7 +19,7 @@ lims = [[-10, 10], [-10, 10]]
 env = Environment(num_actions=num_actions, cov=cov, lims=lims, obstacles=obstacles)
 num_states = env.state_size
 
-num_episodes = 10
+num_episodes = 50000
 episode_length = 50
 num_epochs = num_episodes * episode_length
 frame = int(0.75 * num_epochs)
@@ -67,8 +67,8 @@ trainer = Trainer(
     gpus=AVAIL_GPUS,
     max_epochs=num_epochs,
     # val_check_interval=1000,
-    check_val_every_n_epoch=10,
-    # log_every_n_steps=5000,
+    check_val_every_n_epoch=10000,
+    log_every_n_steps=5000,
     callbacks=[best_checkpoint, last_checkpoint]
 )
 

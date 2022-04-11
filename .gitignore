@@ -8,7 +8,7 @@
 *.bcf
 *.xml
 code/Logs
-code/Environment/__pycache__
+code/Environments/__pycache__
 code/Logger/__pycache__
 code/Utilities/__pycache__
 code/Agents/__pycache__

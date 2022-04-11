@@ -22,7 +22,7 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
     :param path:
     :param params:
     :param env_params_file: string
-    :param env: Environment object
+    :param env: Environments object
     :param agent: Agent object
     :return: None
     """

@@ -6,7 +6,7 @@ from .Obstacle import Obstacle, Obstacle_Circle
 
 class Environment:
     """
-    Environment class
+    Environments class
     """
 
     def __init__(self,

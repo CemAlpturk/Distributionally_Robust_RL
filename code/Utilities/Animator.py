@@ -53,7 +53,7 @@ class Animator:
         """
         Reads data from csv and animates an episode
         :param data_filename: str
-        :param env: Environment class object
+        :param env: Environments class object
         :param plot_settings: dict
         :return: None
         """
