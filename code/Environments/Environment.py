@@ -1,3 +1,4 @@
+from typing import Tuple
 import random
 import numpy as np
 from .Robot import Robot
@@ -16,7 +17,8 @@ class Environment:
                  obstacles=None,
                  # obs_rad=2,
                  lims=None,
-                 settings=None):
+                 settings=None,
+                 n_samples: int = 100):
         """
         Constructor for the Map class
         """
@@ -52,12 +54,6 @@ class Environment:
         self.goal = None
         self.goal_radius = 2
 
-        # Obstacles
-        # self.num_obstacles = num_obstacles
-        # self.obstacle_rad = obs_rad
-        # self.obstacles = []
-        # for _ in range(self.num_obstacles):
-            # self.obstacles.append(Obstacle_Circle(np.array([0, 0]), self.obstacle_rad))
         if obstacles is None:
             self.num_obstacles = 0
             self.obstacles = []
@@ -77,21 +73,18 @@ class Environment:
             self._process_obstacles()
             self.obs_rel_pos = self._gen_obs_box()
 
-
-
-
-
-
         # Override default parameters
         if settings is not None:
             self._parse_params(settings)
-            
+
         self.state_size = 4 + 2 * self.num_obstacles
         self.state = None
         self.old_state = None
         self.state = self.reset()
 
-
+        # Noise sample
+        self.n_samples = n_samples
+        self.noise_sample = self._gen_sample_noise(n_samples)
 
     def reset(self, lamb=20):
         """
@@ -101,7 +94,7 @@ class Environment:
 
         # Generate obstacle positions
         if self.num_obstacles > 0:
-            obstacles = np.zeros(2*self.num_obstacles)
+            obstacles = np.zeros(2 * self.num_obstacles)
             obs_min = np.array([self.x_min, self.y_min]) - self.box_min
             obs_max = np.array([self.x_max, self.y_max]) - self.box_max
             obs_pos = np.random.uniform(low=obs_min, high=obs_max)
@@ -110,7 +103,7 @@ class Environment:
             for i in range(1, self.num_obstacles):
                 new_pos = obs_pos + self.obs_rel_pos[i]
                 self.obstacles[i].center = new_pos
-                obstacles[2*i:2*i+2] = new_pos
+                obstacles[2 * i:2 * i + 2] = new_pos
         # if self.num_obstacles > 0:
         #     obstacles = np.zeros(2*self.num_obstacles)
         #     obs_max = 0.9 * np.array([self.x_max, self.y_max]) - self.obstacle_rad
@@ -131,14 +124,9 @@ class Environment:
         #         self.obstacles[i] = Obstacle_Circle(obs_pos, self.obstacle_rad)
         #         obstacles[2*i:2*i + 2] = obs_pos
 
-
-
-
-
-
         pos_min = [self.x_min, self.y_min]
         pos_max = [self.x_max, self.y_max]
-        
+
         # Check for collisions
         check = False
         num = 0
@@ -149,13 +137,8 @@ class Environment:
             num += 1
             if num > 1000:
                 return self.reset(lamb)
-                
-        
+
         self.robot.set_state(static_state.reshape(-1, 1))
-
-
-
-
 
         goal_min = np.minimum(static_state - lamb, np.array([self.x_min, self.y_min]))
         goal_max = np.maximum(static_state + lamb, np.array([self.x_max, self.y_max]))
@@ -164,11 +147,11 @@ class Environment:
         num = 0
         while not check:
             goal = np.random.uniform(low=goal_min, high=goal_max)
-            
+
             # Check if sampled position is lamb close
             d = np.linalg.norm(goal - static_state, 2)
             if d <= lamb:
-                if (not self.is_collision(goal, self.goal_radius)) and self.is_inside(goal) :
+                if (not self.is_collision(goal, self.goal_radius)) and self.is_inside(goal):
                     check = True
             num += 1
             if num > 1000:
@@ -304,11 +287,44 @@ class Environment:
             goal = self.goal
         # dists = self.get_dists(pos)
         if obs is None:
-            obs = np.zeros(2*self.num_obstacles)
+            obs = np.zeros(2 * self.num_obstacles)
             for i in range(self.num_obstacles):
-                obs[2*i:2*i+2] = self.obstacles[i].center
+                obs[2 * i:2 * i + 2] = self.obstacles[i].center
 
         return np.concatenate((pos, goal, obs))
+
+    def sample_next_states(self, states: np.ndarray, action_idx: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Given the states and actions, sample the next states based on the noise sample
+        and calculate the expected rewards
+        :param states: Current states
+        :param action_idx: Taken actions indexes
+        :return: Samples of next states
+        """
+        n_states = states.shape[0]
+        next_state_samples = np.zeros((n_states * self.n_samples, states.shape[1]), dtype=float)
+        actions = np.zeros((2, self.n_samples), dtype=float)
+        pos = np.zeros((self.n_samples, 2), dtype=float)
+        for i in range(n_states):
+            # For each state-action pairs sample the next states
+            pos[:] = states[i, 0:2]
+            actions[:, :] = self.action_space[:, action_idx[i]].reshape(-1, 1)
+            next_pos = self.robot.dummy_step(pos.T, actions, self.noise_sample.T)
+            start = i * self.n_samples
+            stop = start + self.n_samples
+            next_state_samples[start:stop, 0:2] = next_pos.T
+            next_state_samples[start:stop, 2:] = states[i, 2:]
+
+
+        # Calculate mean of sample rewards
+        rewards = self.reward_multi(next_state_samples).reshape(n_states, -1)
+        mean_rewards = np.mean(rewards, axis=1)
+
+        return next_state_samples, mean_rewards
+
+
+
+
 
     def reached_goal(self, pos=None):
         """
@@ -419,65 +435,103 @@ class Environment:
         :param s_:
         :return:
         """
-#         ### Discrete Rewards
-#         # Step cost
-#         reward = -0.01
-#         # s = self.old_state
-#         s_ = self.state
-#         if self.is_collision(s_[0:2]):
-#             reward -= 10
+        #         ### Discrete Rewards
+        #         # Step cost
+        #         reward = -0.01
+        #         # s = self.old_state
+        #         s_ = self.state
+        #         if self.is_collision(s_[0:2]):
+        #             reward -= 10
 
-#         if self.reached_goal(s_[0:2]):
-#             reward += 10
-
+        #         if self.reached_goal(s_[0:2]):
+        #             reward += 10
 
         pos = self.state[0:2]
         goal = self.state[2:4]
         # Continuous rewards
         reward = -0.01
-    
+
         # Goal position
         A_g = 10
         sig = self.goal_radius / 3
-        B_g = 1 / (2*sig**2)
+        B_g = 1 / (2 * sig ** 2)
         # reward += self.gaus(pos, goal, A_g, B_g)
-        dist = self.goal_radius*0.95 - np.linalg.norm(pos-goal, 2)
+        dist = self.goal_radius * 0.95 - np.linalg.norm(pos - goal, 2)
         reward += self.tanh(dist, 0.1, A_g)
-    
+
         # Obstacles
+        A_o = -10
         for obs in self.obstacles:
-            A_o = -10
+
             sig = obs.radius / 2
-            B_o = 1 / (2*sig**2)
+            B_o = 1 / (2 * sig ** 2)
             # reward += self.gaus(pos, obs.center, A_o, B_o)
             dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
             reward += self.tanh(dist, 0.1, A_o)
-        
+
         # Borders
         steep = 10
         reward += self.sigmoid(pos[0], self.x_min, 1, A_o, steep)
         reward += self.sigmoid(pos[0], self.x_max, 0, A_o, steep)
         reward += self.sigmoid(pos[1], self.y_min, 1, A_o, steep)
         reward += self.sigmoid(pos[1], self.y_max, 0, A_o, steep)
-        
 
         return reward
-    
+
+    def reward_multi(self, states: np.ndarray) -> np.ndarray:
+        """
+        Calculates the reward for multiple states
+        NOTE: Any changes made to the original reward function
+        must be applied to this one!!
+        :param states: States to calculate rewards
+        :return: rewards
+        """
+        reward = -0.01 * np.ones(states.shape[0])
+
+        # Goal position
+        A_g = 10
+        dist = self.goal_radius * 0.95 - np.linalg.norm(states[:, 0:2] - states[:, 2:4], ord=2, axis=1)
+        reward += self.tanh(dist, 0.1, A_g)
+
+        # Obstacles
+        A_o = -10
+        if self.num_obstacles > 0:  # Necessary?? probably
+            obs_rads = np.array([obs.radius for obs in self.obstacles])
+            for i in range(self.num_obstacles):
+                start = 4 + 2 * i
+                stop = start + 2
+                dist = obs_rads[i] - np.linalg.norm(states[:, 0:2] - states[:, start:stop], ord=2, axis=1)
+                reward += self.tanh(dist, 0.1, A_o)
+
+        # Borders
+        steep = 10
+        reward += self.sigmoid(states[:, 0], self.x_min, 1, A_o, steep)
+        reward += self.sigmoid(states[:, 0], self.x_max, 0, A_o, steep)
+        reward += self.sigmoid(states[:, 1], self.y_min, 1, A_o, steep)
+        reward += self.sigmoid(states[:, 1], self.y_max, 0, A_o, steep)
+
+        return reward
+
+
+
     # Helper functions
-    def gaus(self, x, mu, A, B):
-        exponent = -B * (x-mu).dot(x- mu)
+    @staticmethod
+    def gaus(x, mu, A, B):
+        exponent = -B * (x - mu).dot(x - mu)
         return A * np.exp(exponent)
 
-    def sigmoid(self, x, shift, inv, A, steep):
-        sig = 1 / (1 + np.exp(-steep*(x - shift)))
-    
+    @staticmethod
+    def sigmoid(x, shift, inv, A, steep):
+        sig = 1 / (1 + np.exp(-steep * (x - shift)))
+
         if inv == 0:
-            return A*sig
+            return A * sig
         else:
             return A * (inv - sig)
-        
-    def tanh(self, x, d, A):
-        return A * (1 + np.tanh(x/d))/2
+
+    @staticmethod
+    def tanh(x, d, A):
+        return A * (1 + np.tanh(x / d)) / 2
 
     def _dist_to_goal(self, pos):
         """
@@ -524,6 +578,15 @@ class Environment:
     def _gen_noise(self):
         return np.random.multivariate_normal(self.mean, self.cov).reshape((2, 1))
 
+    def _gen_sample_noise(self, n: int) -> np.ndarray:
+        """
+        Generates n samples from the noise generator
+        For Dist robust agents
+        :param n: Number of samples
+        :return: Samples
+        """
+        return np.random.multivariate_normal(self.mean, self.cov, n)
+
     def _gen_obs_box(self):
         """
         Generate bounding box for obstacles
@@ -564,7 +627,6 @@ class Environment:
         self.box_max = box_max
         self.box_min = box_min
 
-
     def _parse_params(self, params: dict):
         """
         TODO: Add summary
@@ -588,8 +650,6 @@ class Environment:
         for obs in obstacles.values():
             circ = Obstacle_Circle(center=obs['center'], radius=obs['radius'])
             self.obstacles.append(circ)
-
-
 
 
 if __name__ == "__main__":

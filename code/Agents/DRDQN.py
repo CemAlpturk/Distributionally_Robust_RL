@@ -40,7 +40,7 @@ class DQN(nn.Module):
 
     def forward(self, x):
         # Forward pass
-        x = self.fc1(x)
+        x = self.fc1(x.float())
         x = self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
@@ -49,7 +49,7 @@ class DQN(nn.Module):
         return x
 
     @staticmethod
-    def initialize_weights(self, m):
+    def initialize_weights(m):
         # HE initialization
         if isinstance(m, nn.Linear):
             nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
@@ -286,6 +286,10 @@ class DRDQN(LightningModule):
             'num_dec_vars': matlab.double([num_decision_vars])
         }
 
+        # Lipschitz constant of the target network
+        self.lip_const = 1
+        self.wasserstein_rad = 1
+
     def populate(self, steps: int = 1000) -> None:
         """
         Performs random actions to fill the replay buffer
@@ -351,8 +355,58 @@ class DRDQN(LightningModule):
 
         # Extract batch
         states, actions, rewards, dones, next_states, probs, idxs = batch
+        batch_size = states.shape[0]
 
-        # TODO: Complete loss
+        state_action_values = self.net(states).gather(1, actions.long().unsqueeze(-1)).squeeze(-1)
+
+        # Calculate next states based on the samples
+        next_state_samples, mean_rewards = self.env.sample_next_states(states.detach().numpy(),
+                                                                       actions.detach().numpy().astype(int))
+
+        # Calculate the max q values for each sampled state
+        with torch.no_grad():
+            # Stochastic
+            if self.hparams.stochastic:
+                q_values = self.target_net(next_state_samples)
+                exp = torch.exp(q_values)
+                sums = torch.reshape(torch.sum(exp, dim=1), (-1,))
+                ps = exp / sums[:, None]
+                next_qvals = torch.sum(torch.mul(q_values, ps), dim=1).detach().numpy()
+
+            # Deterministic
+            else:
+                q_values = self.target_net(torch.tensor(next_state_samples, dtype=torch.float32))
+                next_qvals, _ = torch.max(q_values, dim=1)
+                next_qvals = next_qvals.detach().numpy()
+
+        # Find the expected qvalues for each state by averaging over the samples
+        mean_qvals = np.mean(next_qvals.reshape(batch_size, -1), axis=1)
+
+        # Expected value for the bellman equation sampled from the nominal distribution
+        exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
+
+        # Lipschitz approximation lower bound
+        targets = exp_bellman - self.wasserstein_rad * self.lip_const
+        targets = torch.tensor(targets, dtype=torch.float32).detach()
+
+        # Prioritized experience replay
+        beta = self.get_beta()
+        w = torch.pow((self.buffer.size * probs), -beta)
+        w = w / torch.max(w)  # Normalize weights
+
+        # Update priorities
+        err = torch.abs(state_action_values - targets)
+        err = err.detach().numpy()
+        self.buffer.update_probs(
+            sample_idxs=idxs.detach().numpy(),
+            probs=np.power(err, self.hparams.alpha)
+        )
+
+        # Calcualte loss
+        loss = (w * (state_action_values - targets) ** 2).mean()
+        return loss
+
+
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
         """
@@ -432,6 +486,10 @@ class DRDQN(LightningModule):
         if self.global_step % self.hparams.sync_rate == 0:
             self.target_net.load_state_dict(self.net.state_dict())
             # Add lip calculation here
+            l, t = self.lip()
+            self.lip_const = l
+            self.log("Lip", l)
+            self.log("Lip_time", t)
 
         log = {
             "train_loss": loss
@@ -460,7 +518,7 @@ class DRDQN(LightningModule):
         :param outputs: validation results
         :return: avg reward
         """
-        avg_reward = outputs["trajectory"]
+        avg_reward = outputs["test_reward"]
         self.log("avg_test_reward", avg_reward)
         self.evals_done += 1
         self.log("evals_done", self.evals_done)

@@ -58,6 +58,18 @@ class Robot:
 
         return x_new.reshape(2,)
 
+    def dummy_step(self, x: np.ndarray, u: np.ndarray, w: np.ndarray) -> np.ndarray:
+        """
+        Calculate the next steps for given states, inputs and disturbances
+        :param x: States (2 x N)
+        :param u: Inputs (2 X N)
+        :param w: Disturbances (2 x N)
+        :return: New states (2 X N)
+        """
+
+        new_states = self._A.dot(x) + self._B.dot(u) + w
+        return new_states
+
     def set_state(self, x):
         """
         Set current state to x
