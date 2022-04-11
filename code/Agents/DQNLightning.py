@@ -16,7 +16,7 @@ from torch.utils.data.dataset import IterableDataset
 
 from .Memory import Memory
 from Utilities.plots import plot_vector_field, animate_vector_field
-from Environment.Environment import Environment
+from Environments.Environment import Environment
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 
