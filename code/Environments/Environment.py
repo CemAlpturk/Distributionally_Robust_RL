@@ -86,6 +86,9 @@ class Environment:
         self.n_samples = n_samples
         self.noise_sample = self._gen_sample_noise(n_samples)
 
+        # Lipschitz constant of the reward
+        self.lip = 0.0
+
     def reset(self, lamb=20):
         """
         Reset the environment
@@ -451,30 +454,29 @@ class Environment:
         # Continuous rewards
         reward = -0.01
 
+        # Steepness of the sigmoids
+        delta = 10
+
         # Goal position
         A_g = 10
-        sig = self.goal_radius / 3
-        B_g = 1 / (2 * sig ** 2)
-        # reward += self.gaus(pos, goal, A_g, B_g)
         dist = self.goal_radius * 0.95 - np.linalg.norm(pos - goal, 2)
-        reward += self.tanh(dist, 0.1, A_g)
+        reward += self.tanh(dist, 1/delta, A_g)
 
         # Obstacles
         A_o = -10
         for obs in self.obstacles:
-
-            sig = obs.radius / 2
-            B_o = 1 / (2 * sig ** 2)
-            # reward += self.gaus(pos, obs.center, A_o, B_o)
             dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
-            reward += self.tanh(dist, 0.1, A_o)
+            reward += self.tanh(dist, 1/delta, A_o)
 
         # Borders
-        steep = 10
-        reward += self.sigmoid(pos[0], self.x_min, 1, A_o, steep)
-        reward += self.sigmoid(pos[0], self.x_max, 0, A_o, steep)
-        reward += self.sigmoid(pos[1], self.y_min, 1, A_o, steep)
-        reward += self.sigmoid(pos[1], self.y_max, 0, A_o, steep)
+        reward += self.sigmoid(pos[0], self.x_min, 1, A_o, delta)
+        reward += self.sigmoid(pos[0], self.x_max, 0, A_o, delta)
+        reward += self.sigmoid(pos[1], self.y_min, 1, A_o, delta)
+        reward += self.sigmoid(pos[1], self.y_max, 0, A_o, delta)
+
+        # Lipschitz constant of the reward function, Approximation :(
+        # Note: Apply all changes made to the reward function here !!!
+        self.lip = max(abs(A_g), abs(A_o))/(2*delta)
 
         return reward
 

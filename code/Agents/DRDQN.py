@@ -191,7 +191,8 @@ class DRDQN(LightningModule):
             beta0: float = 0.5,
             beta_max: float = 1.0,
             beta_last_frame: int = 1000,
-            stochastic: bool = False
+            stochastic: bool = False,
+            conf: float = 0.1
     ) -> None:
         """
 
@@ -218,6 +219,7 @@ class DRDQN(LightningModule):
         :param beta_max: Final beta value for priority sampling
         :param beta_last_frame: What step should beta stop increasing
         :param stochastic: Stochastic policy
+        :param conf: Confidence for the Wasserstein ball
         """
         super().__init__()
         self.save_hyperparameters()
@@ -287,8 +289,13 @@ class DRDQN(LightningModule):
         }
 
         # Lipschitz constant of the target network
-        self.lip_const = 1
-        self.wasserstein_rad = 1
+        self.lip_const = 0.0
+
+        # Lipschitz constant of the reward function
+        self.lip_reward = self.env.lip
+
+        # Wasserstein radius for the ambiguity set
+        self.wasserstein_rad = self.w_rad()
 
     def populate(self, steps: int = 1000) -> None:
         """
@@ -386,7 +393,7 @@ class DRDQN(LightningModule):
         exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
 
         # Lipschitz approximation lower bound
-        targets = exp_bellman - self.wasserstein_rad * self.lip_const
+        targets = exp_bellman - self.wasserstein_rad * (self.lip_const + self.lip_reward)
         targets = torch.tensor(targets, dtype=torch.float32).detach()
 
         # Prioritized experience replay
@@ -612,3 +619,47 @@ class DRDQN(LightningModule):
         end_time = time()
 
         return L, float(end_time - start_time)
+
+    def w_rad(self) -> float:
+        """
+        Estimates the Wasserstein ball radius from the noise samples
+        Taken from Wasserstein Safe RRT: Sonia Martinez
+        :return: Wasserstein ball radius
+        """
+        # Number of samples
+        n = self.env.n_samples
+
+        # Wasserstein order
+        p = 2
+
+        # Dimension of the states
+        d = self.env.state_size
+
+        # Confidence
+        beta = self.hparams.conf
+
+        # Check constraints
+        assert p < d/2, "p < d/2 constraint does not hold"
+        assert 0.0 < beta < 1.0, "Confidence beta must be in the interval (0,1)"
+
+        # Diameter of the support for the state distributions
+        # Although infinite, it's assumed to be limited by the limits of the environment
+        x_d = abs(self.env.x_max - self.env.x_min)
+        y_d = abs(self.env.y_max - self.env.y_min)
+
+        # Infinite norm diameter
+        rho = max(x_d, y_d)/2
+
+        # C*
+        c = np.sqrt(d) * pow(2, (d-2)/(2*p)) * pow(1/(1 - pow(2, p-d/2)) + 1/(1-pow(2, -p)), 1/p)
+
+        # Radius eps
+        eps = rho * (c*pow(n, -1/d) + np.sqrt(d)*pow(2*np.log(1/beta), 1/(2*p)) * pow(n, -1/(2*p)))
+
+        # Log the radius
+        self.log("Radius", eps)
+
+        return eps
+
+
+
