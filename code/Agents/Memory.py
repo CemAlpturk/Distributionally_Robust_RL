@@ -104,6 +104,10 @@ class Memory:
         self.max_p = 1  # Initial condition
         self.p_sum = 0
 
+        # Normalization
+        self.insertions = 0
+        self.normalization_rate = 1000
+
         self.tree = SumTree(self.ps)
 
     def __len__(self) -> int:
@@ -133,6 +137,10 @@ class Memory:
         self.p_sum = self.tree.root.value
 
         self.idx = (self.idx + 1) % self.size  # Update index to next available position
+        self.insertions += 1
+        if self.insertions >= self.normalization_rate:
+            self.normalize()
+            self.insertions = 0
 
     def sample(self, batch_size: int):
         """
@@ -172,6 +180,15 @@ class Memory:
         max_val = np.max(probs)
         if max_val > self.max_p:
             max_p = max_val
+
+    def normalize(self) -> None:
+        """
+        Normalize the sum tree with respect to the max value
+        """
+        for i in range(self.num_elements):
+            val = self.tree.leaf_nodes[i].value
+            self.tree.update(i, val/self.max_p)
+        self.max_p = 1.0
 
 
 def demonstrate_sampling(tree: SumTree):
