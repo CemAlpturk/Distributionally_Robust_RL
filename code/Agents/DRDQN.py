@@ -386,31 +386,32 @@ class DRDQN(LightningModule):
                 next_qvals, _ = torch.max(q_values, dim=1)
                 next_qvals = next_qvals.detach().numpy()
 
-        # Find the expected qvalues for each state by averaging over the samples
-        mean_qvals = np.mean(next_qvals.reshape(batch_size, -1), axis=1)
+            # Find the expected qvalues for each state by averaging over the samples
+            mean_qvals = np.mean(next_qvals.reshape(batch_size, -1), axis=1)
 
-        # Expected value for the bellman equation sampled from the nominal distribution
-        exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
+            # Expected value for the bellman equation sampled from the nominal distribution
+            exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
 
         # Lipschitz approximation lower bound
         targets = exp_bellman - self.wasserstein_rad * (self.lip_const + self.lip_reward)
         targets = torch.tensor(targets, dtype=torch.float32).detach()
 
-        # Prioritized experience replay
-        beta = self.get_beta()
-        w = torch.pow((self.buffer.size * probs), -beta)
-        w = w / torch.max(w)  # Normalize weights
-
-        # Update priorities
-        err = torch.abs(state_action_values - targets)
-        err = err.detach().numpy()
-        self.buffer.update_probs(
-            sample_idxs=idxs.detach().numpy(),
-            probs=np.power(err, self.hparams.alpha)
-        )
+        # # Prioritized experience replay
+        # beta = self.get_beta()
+        # w = torch.pow((self.buffer.size * probs), -beta)
+        # w = w / torch.max(w)  # Normalize weights
+        #
+        # # Update priorities
+        # err = torch.abs(state_action_values - targets)
+        # err = err.detach().numpy()
+        # self.buffer.update_probs(
+        #     sample_idxs=idxs.detach().numpy(),
+        #     probs=np.power(err, self.hparams.alpha)
+        # )
 
         # Calcualte loss
-        loss = (w * (state_action_values - targets) ** 2).mean()
+        # loss = (w * (state_action_values - targets) ** 2).mean()
+        loss = nn.MSELoss(state_action_values, targets)
         return loss
 
 
