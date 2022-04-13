@@ -374,9 +374,9 @@ class DQNLightning(LightningModule):
         w = w / torch.max(w)  # Normalize weights
 
         # Update priorities
-        err = torch.abs(state_action_values - expected_state_action_values).data.numpy()
+        err = torch.abs(state_action_values - expected_state_action_values).detach().numpy()
         self.buffer.update_probs(
-            sample_idxs=idxs.data.numpy(),
+            sample_idxs=idxs.detach().numpy(),
             probs=np.power(err, self.hparams.alpha)
         )
 
