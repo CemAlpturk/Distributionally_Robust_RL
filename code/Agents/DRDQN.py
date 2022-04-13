@@ -492,6 +492,8 @@ class DRDQN(LightningModule):
         # Update target network
         if self.global_step % self.hparams.sync_rate == 0:
             self.target_net.load_state_dict(self.net.state_dict())
+            # Save weights
+            self.save_weights()
             # Add lip calculation here
             l, t = self.lip()
             self.lip_const = l
