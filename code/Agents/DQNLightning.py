@@ -239,7 +239,9 @@ class DQNLightning(LightningModule):
             beta0: float = 0.5,
             beta_max: float = 1.0,
             beta_last_frame: int = 1000,
-            stochastic: bool = False
+            stochastic: bool = False,
+            num_neurons: int = 100,
+            priority: bool = True
     ) -> None:
         """
         Args:
@@ -267,8 +269,8 @@ class DQNLightning(LightningModule):
 
         self.env_params = env.get_env_parameters()
 
-        self.net = DQN(obs_size, n_actions)
-        self.target_net = DQN(obs_size, n_actions)
+        self.net = DQN(obs_size, n_actions, num_neurons)
+        self.target_net = DQN(obs_size, n_actions, num_neurons)
 
         self.buffer = Memory(self.hparams.replay_size, obs_size)
         # self.buffer = ReplayBuffer(self.hparams.replay_size)
@@ -368,22 +370,24 @@ class DQNLightning(LightningModule):
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
-        # Weights for the loss
-        beta = self.get_beta()
-        w = torch.pow((self.buffer.size * probs), -beta)
-        w = w / torch.max(w)  # Normalize weights
+        # Priority Sampling
+        if self.hparams.priority:
+            # Weights for the loss
+            beta = self.get_beta()
+            w = torch.pow((self.buffer.size * probs), -beta)
+            w = w / torch.max(w)  # Normalize weights
 
-        # Update priorities
-        err = torch.abs(state_action_values - expected_state_action_values).detach().numpy()
-        self.buffer.update_probs(
-            sample_idxs=idxs.detach().numpy(),
-            probs=np.power(err, self.hparams.alpha)
-        )
+            # Update priorities
+            err = torch.abs(state_action_values - expected_state_action_values).detach().numpy()
+            self.buffer.update_probs(
+                sample_idxs=idxs.detach().numpy(),
+                probs=np.power(err, self.hparams.alpha)
+            )
+            loss = (w * (state_action_values - expected_state_action_values) ** 2).mean()
 
-        # loss = (w * nn.MSELoss()(state_action_values, expected_state_action_values)).mean()
-        # loss = nn.MSELoss()(state_action_values, expected_state_action_values)
-        loss = (w * (state_action_values - expected_state_action_values) ** 2).mean()
-        # loss = (w * (state_action_values - expected_state_action_values) ** 2).sum()
+        else:
+            loss = nn.MSELoss()(state_action_values, expected_state_action_values)
+
         return loss
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
