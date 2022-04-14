@@ -15,7 +15,8 @@ class Environment:
                  mean=np.zeros(2),
                  cov=0 * np.identity(2),
                  obstacles=None,
-                 # obs_rad=2,
+                 goal=None,
+                 static_obs=True,
                  lims=None,
                  settings=None,
                  n_samples: int = 100):
@@ -51,7 +52,13 @@ class Environment:
         self._gen_action_space()
         self.action_shape = (self.action_space.shape[1], 1)
 
-        self.goal = None
+        # Goal
+        if goal is None:
+            self.goal = None
+            self.static_goal = False
+        else:
+            self.goal = goal
+            self.static_goal = True
         self.goal_radius = 2
 
         if obstacles is None:
@@ -72,6 +79,7 @@ class Environment:
             # Generate box dimensions relative to first obstacle
             self._process_obstacles()
             self.obs_rel_pos = self._gen_obs_box()
+            self.static_obs = static_obs
 
         # Override default parameters
         if settings is not None:
@@ -97,35 +105,19 @@ class Environment:
 
         # Generate obstacle positions
         if self.num_obstacles > 0:
-            obstacles = np.zeros(2 * self.num_obstacles)
-            obs_min = np.array([self.x_min, self.y_min]) - self.box_min
-            obs_max = np.array([self.x_max, self.y_max]) - self.box_max
-            obs_pos = np.random.uniform(low=obs_min, high=obs_max)
-            self.obstacles[0].center = obs_pos
-            obstacles[0:2] = obs_pos
-            for i in range(1, self.num_obstacles):
-                new_pos = obs_pos + self.obs_rel_pos[i]
-                self.obstacles[i].center = new_pos
-                obstacles[2 * i:2 * i + 2] = new_pos
-        # if self.num_obstacles > 0:
-        #     obstacles = np.zeros(2*self.num_obstacles)
-        #     obs_max = 0.9 * np.array([self.x_max, self.y_max]) - self.obstacle_rad
-        #     obs_min = 0.9 * np.array([self.x_min, self.y_min]) + self.obstacle_rad
-        #     for i in range(self.num_obstacles):
-        #         check = False
-        #         while not check:
-        #             obs_pos = np.random.uniform(low=obs_min, high=obs_max)
-        #             # Check for collisions with other obstacles
-        #             col = False
-        #             for j in range(i-1, -1, -1):
-        #                 dist = np.linalg.norm(obs_pos - self.obstacles[j].center, 2)
-        #                 if dist <= 2*self.obstacle_rad:
-        #                     col = True
-        #                     break
-        #             check = not col
-        #
-        #         self.obstacles[i] = Obstacle_Circle(obs_pos, self.obstacle_rad)
-        #         obstacles[2*i:2*i + 2] = obs_pos
+            if self.static_obs:
+                obstacles = np.array([obs.center for obs in self.obstacles]).reshape(-1,)
+            else:
+                obstacles = np.zeros(2 * self.num_obstacles)
+                obs_min = np.array([self.x_min, self.y_min]) - self.box_min
+                obs_max = np.array([self.x_max, self.y_max]) - self.box_max
+                obs_pos = np.random.uniform(low=obs_min, high=obs_max)
+                self.obstacles[0].center = obs_pos
+                obstacles[0:2] = obs_pos
+                for i in range(1, self.num_obstacles):
+                    new_pos = obs_pos + self.obs_rel_pos[i]
+                    self.obstacles[i].center = new_pos
+                    obstacles[2 * i:2 * i + 2] = new_pos
 
         pos_min = [self.x_min, self.y_min]
         pos_max = [self.x_max, self.y_max]
@@ -143,28 +135,27 @@ class Environment:
 
         self.robot.set_state(static_state.reshape(-1, 1))
 
-        goal_min = np.minimum(static_state - lamb, np.array([self.x_min, self.y_min]))
-        goal_max = np.maximum(static_state + lamb, np.array([self.x_max, self.y_max]))
-        # Not good FIX
-        check = False
-        num = 0
-        while not check:
-            goal = np.random.uniform(low=goal_min, high=goal_max)
+        if not self.static_goal:
+            goal_min = np.minimum(static_state - lamb, np.array([self.x_min, self.y_min]))
+            goal_max = np.maximum(static_state + lamb, np.array([self.x_max, self.y_max]))
+            # Not good FIX
+            check = False
+            num = 0
+            while not check:
+                goal = np.random.uniform(low=goal_min, high=goal_max)
 
-            # Check if sampled position is lamb close
-            d = np.linalg.norm(goal - static_state, 2)
-            if d <= lamb:
-                if (not self.is_collision(goal, self.goal_radius)) and self.is_inside(goal):
-                    check = True
-            num += 1
-            if num > 1000:
-                return self.reset(lamb)
+                # Check if sampled position is lamb close
+                d = np.linalg.norm(goal - static_state, 2)
+                if d <= lamb:
+                    if (not self.is_collision(goal, self.goal_radius)) and self.is_inside(goal):
+                        check = True
+                num += 1
+                if num > 1000:
+                    return self.reset(lamb)
 
-        self.goal = goal
-        # self.goal = [0.0, 5.0]
+            self.goal = goal
+            # self.goal = [0.0, 5.0]
 
-        # return self.robot.get_state(), self.check_sensors()
-        dists = self.get_dists(static_state)
         self.old_state = self.state
         if self.num_obstacles > 0:
             self.state = np.concatenate((self.robot.get_state(), self.goal, obstacles), dtype=float)
@@ -455,24 +446,24 @@ class Environment:
         reward = -0.01
 
         # Steepness of the sigmoids
-        delta = 10
+        delta = 0.1
 
         # Goal position
         A_g = 10
         dist = self.goal_radius * 0.95 - np.linalg.norm(pos - goal, 2)
-        reward += self.tanh(dist, 1/delta, A_g)
+        reward += self.tanh(dist, delta, A_g)
 
         # Obstacles
         A_o = -10
         for obs in self.obstacles:
             dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
-            reward += self.tanh(dist, 1/delta, A_o)
+            reward += self.tanh(dist, delta, A_o)
 
         # Borders
-        reward += self.sigmoid(pos[0], self.x_min, 1, A_o, delta)
-        reward += self.sigmoid(pos[0], self.x_max, 0, A_o, delta)
-        reward += self.sigmoid(pos[1], self.y_min, 1, A_o, delta)
-        reward += self.sigmoid(pos[1], self.y_max, 0, A_o, delta)
+        reward += self.sigmoid(pos[0], self.x_min, 1, A_o, 1/delta)
+        reward += self.sigmoid(pos[0], self.x_max, 0, A_o, 1/delta)
+        reward += self.sigmoid(pos[1], self.y_min, 1, A_o, 1/delta)
+        reward += self.sigmoid(pos[1], self.y_max, 0, A_o, 1/delta)
 
         # Lipschitz constant of the reward function, Approximation :(
         # Note: Apply all changes made to the reward function here !!!
