@@ -411,7 +411,7 @@ class DRDQN(LightningModule):
 
         # Calcualte loss
         # loss = (w * (state_action_values - targets) ** 2).mean()
-        loss = nn.MSELoss(state_action_values, targets)
+        loss = nn.MSELoss()(state_action_values, targets)
         return loss
 
 
