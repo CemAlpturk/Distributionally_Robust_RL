@@ -105,8 +105,8 @@ class Memory:
         self.p_sum = 0
 
         # Normalization
-        self.insertions = 0
-        self.normalization_rate = 1000
+        # self.insertions = 0
+        # self.normalization_rate = 1000
 
         self.tree = SumTree(self.ps)
 
@@ -137,10 +137,10 @@ class Memory:
         self.p_sum = self.tree.root.value
 
         self.idx = (self.idx + 1) % self.size  # Update index to next available position
-        self.insertions += 1
-        if self.insertions >= self.normalization_rate:
-            self.normalize()
-            self.insertions = 0
+        # self.insertions += 1
+        # if self.insertions >= self.normalization_rate:
+        #     self.normalize()
+        #     self.insertions = 0
 
     def sample(self, batch_size: int):
         """
