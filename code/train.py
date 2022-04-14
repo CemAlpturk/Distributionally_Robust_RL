@@ -7,16 +7,25 @@ from Environments.Environment import Environment
 
 from Agents.DQNLightning import DQNLightning
 
+# from Agents.LQN import LQN
+
+# from Agents.DRDQN import DRDQN
+
 AVAIL_GPUS = min(1, torch.cuda.device_count())
 
 # Noise dist
-cov = 0.1 * np.identity(2)
+cov = 0 * np.identity(2)
 num_actions = 8
 obstacles = [(np.array([-3.5, 0]), 2), (np.array([3.5, 0]), 2)]
-# num_obstacles = 3
-# obs_rad = 1.5
+goal = [0.0, 5.0]
+
 lims = [[-10, 10], [-10, 10]]
-env = Environment(num_actions=num_actions, cov=cov, lims=lims, obstacles=obstacles)
+env = Environment(num_actions=num_actions,
+                  cov=cov,
+                  lims=lims,
+                  obstacles=obstacles,
+                  static_obs=True,
+                  goal=goal)
 num_states = env.state_size
 
 num_episodes = 50000
@@ -29,7 +38,7 @@ model = DQNLightning(env=env,
                      lr=1e-3,
                      gamma=0.9,
                      sync_rate=5000,
-                     replay_size=10000,
+                     replay_size=2000,
                      warm_start_size=1000,
                      eps_last_frame=frame,
                      eps_start=1.0,
@@ -42,7 +51,7 @@ model = DQNLightning(env=env,
                      beta0=0.5,
                      beta_max=1.0,
                      beta_last_frame=frame,
-                     stochastic=False
+                     stochastic=False,
                      )
 
 # Best model checkpoint
@@ -51,7 +60,8 @@ best_checkpoint = ModelCheckpoint(
     monitor="avg_test_reward",
     mode="max",
     # dirpath="models/",
-    filename="best"
+    filename="best",
+    save_weights_only=True
 )
 
 # Last model checkpoint
@@ -60,7 +70,8 @@ last_checkpoint = ModelCheckpoint(
     monitor="evals_done",
     mode="max",
     # dirpath="models/",
-    filename="last"
+    filename="last",
+    save_weights_only=True
 )
 
 trainer = Trainer(
@@ -73,37 +84,3 @@ trainer = Trainer(
 )
 
 trainer.fit(model)
-
-# network_parameters = {
-#     "num_actions": num_actions,
-#     "num_states": num_states,
-#     "layers": [num_states, 100, 100]
-# }
-
-# agent = DRAgent(network_parameters, env, memory=10000)
-# # agent.set_state_lims(env.get_state_lims())
-# agent.train(
-#     max_episodes=10000,
-#     exploration_rate=1.0,
-#     exploration_rate_decay=0.9995,
-#     min_exploration_rate=0.1,
-#     stochastic=False,
-#     discount=0.9,
-#     batch_size=32,
-#     learning_rate=0.001,
-#     max_time_steps=50,
-#     warm_start=False,
-#     best=True,
-#     timedir='2022-03-14_16-45-49',
-#     model_allignment_period=100,
-#     evaluate_model_period=250,
-#     evaluation_size=50,
-#     lamb=5,
-#     d_lamb=0.01,
-#     max_lamb=40,
-#     render=False,
-#     save_animation_period=10000
-# )
-
-# path = agent.Logger.env_param_dir
-# plots.plot_vector_field(path, env, agent)
