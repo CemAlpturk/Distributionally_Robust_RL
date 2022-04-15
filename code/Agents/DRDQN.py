@@ -397,7 +397,7 @@ class DRDQN(LightningModule):
             exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
 
         # Lipschitz approximation lower bound
-        targets = exp_bellman - self.wasserstein_rad * (self.lip_const + self.lip_reward)
+        targets = exp_bellman - self.wasserstein_rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
         targets = torch.tensor(targets, dtype=torch.float32).detach()
 
         # Prioritized experience replay
