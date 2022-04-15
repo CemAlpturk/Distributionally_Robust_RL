@@ -192,7 +192,9 @@ class DRDQN(LightningModule):
             beta_max: float = 1.0,
             beta_last_frame: int = 1000,
             stochastic: bool = False,
-            conf: float = 0.1
+            conf: float = 0.1,
+            num_neurons: int = 100,
+            priority: bool = True
     ) -> None:
         """
 
@@ -220,6 +222,8 @@ class DRDQN(LightningModule):
         :param beta_last_frame: What step should beta stop increasing
         :param stochastic: Stochastic policy
         :param conf: Confidence for the Wasserstein ball
+        :param num_neurons: Number of neurons in hidden layers
+        :param priority: Prioritized experience replay
         """
         super().__init__()
         self.save_hyperparameters()
@@ -231,8 +235,8 @@ class DRDQN(LightningModule):
         self.env_params = env.get_env_parameters()
 
         # Policy and target networks
-        self.net = DQN(obs_size, n_actions)
-        self.target_net = DQN(obs_size, n_actions)
+        self.net = DQN(obs_size, n_actions, num_neurons)
+        self.target_net = DQN(obs_size, n_actions, num_neurons)
 
         # Replay buffer
         self.buffer = Memory(self.hparams.replay_size, obs_size)
@@ -396,22 +400,22 @@ class DRDQN(LightningModule):
         targets = exp_bellman - self.wasserstein_rad * (self.lip_const + self.lip_reward)
         targets = torch.tensor(targets, dtype=torch.float32).detach()
 
-        # # Prioritized experience replay
-        # beta = self.get_beta()
-        # w = torch.pow((self.buffer.size * probs), -beta)
-        # w = w / torch.max(w)  # Normalize weights
-        #
-        # # Update priorities
-        # err = torch.abs(state_action_values - targets)
-        # err = err.detach().numpy()
-        # self.buffer.update_probs(
-        #     sample_idxs=idxs.detach().numpy(),
-        #     probs=np.power(err, self.hparams.alpha)
-        # )
+        # Prioritized experience replay
+        if self.hparams.priority:
+            beta = self.get_beta()
+            w = torch.pow((self.buffer.size * probs), -beta)
+            w = w / torch.max(w)  # Normalize weights
 
-        # Calcualte loss
-        # loss = (w * (state_action_values - targets) ** 2).mean()
-        loss = nn.MSELoss()(state_action_values, targets)
+            # Update priorities
+            err = torch.abs(state_action_values - targets)
+            err = err.detach().numpy()
+            self.buffer.update_probs(
+                sample_idxs=idxs.detach().numpy(),
+                probs=np.power(err, self.hparams.alpha)
+            )
+            loss = (w * (state_action_values - targets) ** 2).mean()
+        else:
+            loss = nn.MSELoss()(state_action_values, targets)
         return loss
 
 
