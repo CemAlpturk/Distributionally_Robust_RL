@@ -24,17 +24,17 @@ PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 class DQN(nn.Module):
     """Simple MLP network."""
 
-    def __init__(self, state_size: int, n_actions: int, hidden_size: int = 100):
+    def __init__(self, state_size: int, n_actions: int, hidden_size: int = 100, dueling=False):
         super(DQN, self).__init__()
-
+        self.dueling = dueling
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.relu = nn.ReLU()
-        # self.fc_value = nn.Linear(hidden_size, hidden_size)
-        # self.fc_adv = nn.Linear(hidden_size, hidden_size)
-
-        self.value = nn.Linear(hidden_size, 1)
-        self.adv = nn.Linear(hidden_size, n_actions)
+        if dueling:
+            self.value = nn.Linear(hidden_size, 1)
+            self.adv = nn.Linear(hidden_size, n_actions)
+        else:
+            self.fc3 = nn.Linear(hidden_size, n_actions)
 
         self.apply(self.initialize_weights)
 
@@ -42,17 +42,16 @@ class DQN(nn.Module):
         x = self.fc1(x.float())
         x = self.relu(x)
         x = self.fc2(x)
-        x = self.relu(x)
-        # value = self.fc_value(x)
-        # value = self.relu(value)
-        # adv = self.fc_adv(x)
-        # adv = self.relu(adv)
+        if self.dueling:
+            x = self.relu(x)
 
-        value = self.value(x)
-        adv = self.adv(x)
+            value = self.value(x)
+            adv = self.adv(x)
 
-        adv_average = torch.mean(adv, dim=1, keepdim=True)
-        Q = value + adv - adv_average
+            adv_average = torch.mean(adv, dim=1, keepdim=True)
+            Q = value + adv - adv_average
+        else:
+            Q = self.fc3(x)
 
         return Q
 
@@ -241,7 +240,8 @@ class DQNLightning(LightningModule):
             beta_last_frame: int = 1000,
             stochastic: bool = False,
             num_neurons: int = 100,
-            priority: bool = True
+            priority: bool = True,
+            dueling: bool = False
     ) -> None:
         """
         Args:
@@ -269,8 +269,8 @@ class DQNLightning(LightningModule):
 
         self.env_params = env.get_env_parameters()
 
-        self.net = DQN(obs_size, n_actions, num_neurons)
-        self.target_net = DQN(obs_size, n_actions, num_neurons)
+        self.net = DQN(obs_size, n_actions, num_neurons, dueling)
+        self.target_net = DQN(obs_size, n_actions, num_neurons, dueling)
 
         self.buffer = Memory(self.hparams.replay_size, obs_size)
         # self.buffer = ReplayBuffer(self.hparams.replay_size)
