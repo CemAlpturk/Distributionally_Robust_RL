@@ -433,8 +433,6 @@ class DRDQN(LightningModule):
             loss = nn.MSELoss()(state_action_values, targets)
         return loss
 
-
-
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
         """
         Get epsilon value for current step
@@ -557,7 +555,7 @@ class DRDQN(LightningModule):
         fig = plot_vector_field(self.env_params, env=self.env, agent=self, trajectory=trajectory)
         tensorboard = self.logger.experiment
         tensorboard.add_figure("vector_field", fig, global_step=self.global_step)
-        return{"avg_test_reward": avg_reward}
+        return {"avg_test_reward": avg_reward}
 
     def configure_optimizers(self) -> List[Optimizer]:
         """
@@ -613,9 +611,11 @@ class DRDQN(LightningModule):
         actions = torch.argmax(q_values, dim=1).detach().numpy()
         return actions
 
-    def save_weights(self) -> None:
+    def save_weights(self, a: int = None) -> None:
         """
         Saves the weights of the target network to a tmp directory for Lip estimation
+        Depending on dueling layer saves different weights
+        :param a: The index of the selected output (only for dqn)
         """
         # Extract weights from the target network
         state_dict = self.target_net.state_dict()
@@ -625,7 +625,31 @@ class DRDQN(LightningModule):
 
             # Process weights not biases
             if 'weight' in param_tensor:
-                weights.append(tensor)
+                # Dueling architecture
+                if self.hparams.dueling:
+                    # Input layer
+                    if 'fc1' in param_tensor:
+                        weights.append(tensor[:, 0:2])
+                    # Fully connected layers
+                    elif 'fc' in param_tensor:
+                        weights.append(tensor)
+                    # Value layer
+                    elif 'value' in param_tensor:
+                        weights.append(tensor)
+
+                # Standard DQN architecture
+                else:
+                    if 'fc1' in param_tensor:
+                        weights.append(tensor[:, 0:2])
+                    # Output layer
+                    elif 'fc3' in param_tensor:
+                        if a is None:
+                            weights.append(tensor)
+                        else:
+                            weights.append(tensor[a, :].reshape(1, -1))
+                    # Fully connected layers
+                    else:
+                        weights.append(tensor)
 
         # Save weights
         data = {"weights": np.array(weights, dtype=object)}
@@ -661,7 +685,7 @@ class DRDQN(LightningModule):
         beta = self.hparams.conf
 
         # Check constraints
-        assert p < d/2, "p < d/2 constraint does not hold"
+        assert p < d / 2, "p < d/2 constraint does not hold"
         assert 0.0 < beta < 1.0, "Confidence beta must be in the interval (0,1)"
 
         # Diameter of the support for the state distributions
@@ -670,18 +694,15 @@ class DRDQN(LightningModule):
         y_d = abs(self.env.y_max - self.env.y_min)
 
         # Infinite norm diameter
-        rho = max(x_d, y_d)/2
+        rho = max(x_d, y_d) / 2
 
         # C*
-        c = np.sqrt(d) * pow(2, (d-2)/(2*p)) * pow(1/(1 - pow(2, p-d/2)) + 1/(1-pow(2, -p)), 1/p)
+        c = np.sqrt(d) * pow(2, (d - 2) / (2 * p)) * pow(1 / (1 - pow(2, p - d / 2)) + 1 / (1 - pow(2, -p)), 1 / p)
 
         # Radius eps
-        eps = rho * (c*pow(n, -1/d) + np.sqrt(d)*pow(2*np.log(1/beta), 1/(2*p)) * pow(n, -1/(2*p)))
+        eps = rho * (c * pow(n, -1 / d) + np.sqrt(d) * pow(2 * np.log(1 / beta), 1 / (2 * p)) * pow(n, -1 / (2 * p)))
 
         # Log the radius
         self.log("Radius", eps)
 
         return eps
-
-
-
