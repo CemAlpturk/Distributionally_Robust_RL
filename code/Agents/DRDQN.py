@@ -208,7 +208,9 @@ class DRDQN(LightningModule):
             conf: float = 0.1,
             num_neurons: int = 100,
             priority: bool = True,
-            dueling: bool = False
+            dueling: bool = False,
+            form: str = 'layer',
+            lip_network: bool = False
     ) -> None:
         """
 
@@ -239,6 +241,8 @@ class DRDQN(LightningModule):
         :param num_neurons: Number of neurons in hidden layers
         :param priority: Prioritized experience replay
         :param dueling: Dueling network architecture
+        :param form: What formulation to use in Lip estimation
+        :param lip_network: Whether to use the entire networks lip rather than individual outputs
         """
         super().__init__()
         self.save_hyperparameters()
@@ -278,7 +282,7 @@ class DRDQN(LightningModule):
 
         # LipSDP parameters
         weight_path = 'tmp/weights.mat'
-        form = 'layer'
+        form = form
         alpha = 0.0
         beta = 1.0
         num_neurons = 100  # Default value
@@ -511,12 +515,25 @@ class DRDQN(LightningModule):
         if self.global_step % self.hparams.sync_rate == 0:
             self.target_net.load_state_dict(self.net.state_dict())
             # Save weights
-            self.save_weights()
-            # Add lip calculation here
-            l, t = self.lip()
-            self.lip_const = l
-            self.log("Lip", l)
-            self.log("Lip_time", t)
+            if self.hparams.dueling or self.hparams.lip_network:
+                self.save_weights()
+                l, t = self.lip()
+                self.lip_const = l
+                self.log("Lip_time", t)
+            else:
+                ls = []
+                ts = 0.0
+                for a in range(self.env.num_actions):
+                    self.save_weights(a)
+                    l, t = self.lip()
+                    ls.append(l)
+                    ts += t
+                l_max = np.max(ls)
+                self.lip_const = l_max
+                self.log("Lip_time", ts)
+
+        self.log("lip", self.lip_const)
+
 
         log = {
             "train_loss": loss
