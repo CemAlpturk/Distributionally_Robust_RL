@@ -42,8 +42,8 @@ class DQN(nn.Module):
         x = self.fc1(x.float())
         x = self.relu(x)
         x = self.fc2(x)
+        x = self.relu(x)
         if self.dueling:
-            x = self.relu(x)
 
             value = self.value(x)
             adv = self.adv(x)
@@ -320,7 +320,7 @@ class DQNLightning(LightningModule):
                     trajectory.append(self.agent.state.copy())
                 if done:
                     break
-            
+
             total_rewards.append(episode_reward)
         self.agent.reset(lamb)
         return total_rewards, np.array(trajectory)
@@ -363,7 +363,7 @@ class DQNLightning(LightningModule):
                 next_state_values = self.target_net(next_states)
                 exp = torch.exp(next_state_values)
                 sums = torch.reshape(torch.sum(exp, dim=1), (-1,))
-                ps = exp / sums[:, None]   # torch.div(exp, sums)
+                ps = exp / sums[:, None]  # torch.div(exp, sums)
                 next_state_values = torch.mean(torch.mul(next_state_values, ps), dim=1)
 
             next_state_values[dones] = 0.0
