@@ -27,13 +27,19 @@ class DQN(nn.Module):
     Dense DQN Network
     """
 
-    def __init__(self, state_size: int, n_actions: int, hidden_size: int = 100):
+    def __init__(self, state_size: int, n_actions: int, hidden_size: int = 100, dueling: bool = False):
         super(DQN, self).__init__()
-
+        self.dueling = dueling
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, n_actions)
+
         self.relu = nn.ReLU()
+
+        if dueling:
+            self.value = nn.Linear(hidden_size, 1)
+            self.adv = nn.Linear(hidden_size, n_actions)
+        else:
+            self.fc3 = nn.Linear(hidden_size, n_actions)
 
         # Weight Initialization
         self.apply(self.initialize_weights)
@@ -44,9 +50,16 @@ class DQN(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
-        x = self.fc3(x)
+        if self.dueling:
+            value = self.value(x)
+            adv = self.adv(x)
 
-        return x
+            adv_average = torch.mean(adv, dim=1, keepdim=True)
+            Q = value + adv - adv_average
+        else:
+            Q = self.fc3(x)
+
+        return Q
 
     @staticmethod
     def initialize_weights(m):
@@ -194,7 +207,8 @@ class DRDQN(LightningModule):
             stochastic: bool = False,
             conf: float = 0.1,
             num_neurons: int = 100,
-            priority: bool = True
+            priority: bool = True,
+            dueling: bool = False
     ) -> None:
         """
 
@@ -224,6 +238,7 @@ class DRDQN(LightningModule):
         :param conf: Confidence for the Wasserstein ball
         :param num_neurons: Number of neurons in hidden layers
         :param priority: Prioritized experience replay
+        :param dueling: Dueling network architecture
         """
         super().__init__()
         self.save_hyperparameters()
@@ -235,8 +250,8 @@ class DRDQN(LightningModule):
         self.env_params = env.get_env_parameters()
 
         # Policy and target networks
-        self.net = DQN(obs_size, n_actions, num_neurons)
-        self.target_net = DQN(obs_size, n_actions, num_neurons)
+        self.net = DQN(obs_size, n_actions, num_neurons, dueling)
+        self.target_net = DQN(obs_size, n_actions, num_neurons, dueling)
 
         # Replay buffer
         self.buffer = Memory(self.hparams.replay_size, obs_size)
