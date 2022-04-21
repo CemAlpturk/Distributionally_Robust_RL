@@ -241,7 +241,8 @@ class DRDQN(LightningModule):
             form: str = 'layer',
             lip_network: bool = False,
             weight_scale: float = 1.0,
-            dueling_max: bool = True
+            dueling_max: bool = True,
+            reward_scale: float = 1.0
     ) -> None:
         """
 
@@ -276,6 +277,7 @@ class DRDQN(LightningModule):
         :param lip_network: Whether to use the entire networks lip rather than individual outputs
         :param weight_scale: Scale for the initial weights
         :param dueling_max: Whether to use max or mean in aggregation
+        :param reward_scale: For rescaling the rewards when plotting
         """
         super().__init__()
         self.save_hyperparameters()
@@ -605,7 +607,7 @@ class DRDQN(LightningModule):
         :param outputs: validation results
         :return: avg reward
         """
-        avg_reward = outputs["test_reward"]
+        avg_reward = outputs["test_reward"]/self.hparams.reward_scale
         self.log("avg_test_reward", avg_reward)
         self.evals_done += 1
         self.log("evals_done", self.evals_done)

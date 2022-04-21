@@ -19,7 +19,8 @@ class Environment:
                  static_obs=True,
                  lims=None,
                  settings=None,
-                 n_samples: int = 100):
+                 n_samples: int = 100,
+                 reward_scale: float = 1.0):
         """
         Constructor for the Map class
         """
@@ -97,7 +98,7 @@ class Environment:
         # Lipschitz constant of the reward
         self.lip = 0.0
         
-        self.reward_scale = 1e-2
+        self.reward_scale = reward_scale
 
     def reset(self, lamb=20):
         """
