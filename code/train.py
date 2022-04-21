@@ -9,14 +9,14 @@ from Agents.DQNLightning import DQNLightning
 
 # from Agents.LQN import LQN
 
-# from Agents.DRDQN import DRDQN
+from Agents.DRDQN import DRDQN
 
 AVAIL_GPUS = min(1, torch.cuda.device_count())
 
 # Noise dist
-cov = 0 * np.identity(2)
+cov = 0.15 * np.identity(2)
 num_actions = 8
-obstacles = [(np.array([-3.5, 0]), 2), (np.array([3.5, 0]), 2)]
+obstacles = [(np.array([0.0, 0.0]), 2)] # (np.array([3.5, 0]), 2)]
 goal = [0.0, 5.0]
 
 lims = [[-10, 10], [-10, 10]]
@@ -33,12 +33,12 @@ episode_length = 50
 num_epochs = num_episodes * episode_length
 frame = int(0.75 * num_epochs)
 
-model = DQNLightning(env=env,
+model = DRDQN(env=env,
                      batch_size=32,
-                     lr=1e-3,
+                     lr=1e-4,
                      gamma=0.9,
                      sync_rate=5000,
-                     replay_size=2000,
+                     replay_size=5000,
                      warm_start_size=1000,
                      eps_last_frame=frame,
                      eps_start=1.0,
@@ -52,6 +52,10 @@ model = DQNLightning(env=env,
                      beta_max=1.0,
                      beta_last_frame=frame,
                      stochastic=False,
+                     dueling=False,
+                     priority=True,
+                     num_neurons=150,
+                     conf=0.2
                      )
 
 # Best model checkpoint
