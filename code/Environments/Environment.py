@@ -96,6 +96,8 @@ class Environment:
 
         # Lipschitz constant of the reward
         self.lip = 0.0
+        
+        self.reward_scale = 1e-2
 
     def reset(self, lamb=20):
         """
@@ -467,9 +469,9 @@ class Environment:
 
         # Lipschitz constant of the reward function, Approximation :(
         # Note: Apply all changes made to the reward function here !!!
-        self.lip = max(abs(A_g), abs(A_o))/(2*delta)
+        self.lip = max(abs(A_g), abs(A_o))/(2*delta)*self.reward_scale
 
-        return reward
+        return reward*self.reward_scale
 
     def reward_multi(self, states: np.ndarray) -> np.ndarray:
         """
