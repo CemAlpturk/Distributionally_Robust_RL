@@ -27,9 +27,25 @@ class DQN(nn.Module):
     Dense DQN Network
     """
 
-    def __init__(self, state_size: int, n_actions: int, hidden_size: int = 100, dueling: bool = False):
+    def __init__(self,
+                 state_size: int,
+                 n_actions: int,
+                 hidden_size: int = 100,
+                 dueling: bool = False,
+                 dueling_max: bool = True,
+                 init_scale: float = 1.0):
+        """
+        :param state_size: Input size
+        :param n_actions: Output size
+        :param hidden_size: Number of hidden neurons
+        :param dueling: Dueling architecture
+        :param dueling_max: Whether to use max or mean in aggregation layer
+        :param init_scale: Initial parameter scaling
+        """
         super(DQN, self).__init__()
         self.dueling = dueling
+        self.dueling_max = dueling_max
+        self.init_scale = init_scale
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
 
@@ -44,8 +60,12 @@ class DQN(nn.Module):
         # Weight Initialization
         self.apply(self.initialize_weights)
 
-    def forward(self, x):
-        # Forward pass
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass
+        :param x: Input tensor
+        :return: Output tensor
+        """
         x = self.fc1(x.float())
         x = self.relu(x)
         x = self.fc2(x)
@@ -54,18 +74,27 @@ class DQN(nn.Module):
             value = self.value(x)
             adv = self.adv(x)
 
-            adv_average, _ = torch.max(adv, dim=1, keepdim=True)
-            Q = value + adv - adv_average
+            if self.dueling_max:
+                agg, _ = torch.max(adv, dim=1, keepdim=True)
+            else:
+                agg = torch.mean(adv, dim=1, keepdim=True)
+            Q = value + adv - agg
         else:
             Q = self.fc3(x)
 
         return Q
 
-    @staticmethod
-    def initialize_weights(m):
-        # HE initialization
+    def initialize_weights(self, m):
+        """
+        HE initialization
+        :param m: weights
+        """
         if isinstance(m, nn.Linear):
             nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+
+        # Scale the weights
+        m.weight *= self.init_scale
+        m.bias += self.init_scale
 
 
 class RLDataset(IterableDataset):
@@ -210,7 +239,9 @@ class DRDQN(LightningModule):
             priority: bool = True,
             dueling: bool = False,
             form: str = 'layer',
-            lip_network: bool = False
+            lip_network: bool = False,
+            weight_scale: float = 1.0,
+            dueling_max: bool = True
     ) -> None:
         """
 
@@ -243,6 +274,8 @@ class DRDQN(LightningModule):
         :param dueling: Dueling network architecture
         :param form: What formulation to use in Lip estimation
         :param lip_network: Whether to use the entire networks lip rather than individual outputs
+        :param weight_scale: Scale for the initial weights
+        :param dueling_max: Whether to use max or mean in aggregation
         """
         super().__init__()
         self.save_hyperparameters()
@@ -254,8 +287,18 @@ class DRDQN(LightningModule):
         self.env_params = env.get_env_parameters()
 
         # Policy and target networks
-        self.net = DQN(obs_size, n_actions, num_neurons, dueling)
-        self.target_net = DQN(obs_size, n_actions, num_neurons, dueling)
+        self.net = DQN(obs_size,
+                       n_actions,
+                       num_neurons,
+                       dueling,
+                       dueling_max,
+                       weight_scale)
+        self.target_net = DQN(obs_size,
+                              n_actions,
+                              num_neurons,
+                              dueling,
+                              dueling_max,
+                              weight_scale)
 
         # Replay buffer
         self.buffer = Memory(self.hparams.replay_size, obs_size)
