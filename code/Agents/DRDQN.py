@@ -54,7 +54,7 @@ class DQN(nn.Module):
             value = self.value(x)
             adv = self.adv(x)
 
-            adv_average = torch.mean(adv, dim=1, keepdim=True)
+            adv_average, _ = torch.max(adv, dim=1, keepdim=True)
             Q = value + adv - adv_average
         else:
             Q = self.fc3(x)
@@ -711,7 +711,7 @@ class DRDQN(LightningModule):
         y_d = abs(self.env.y_max - self.env.y_min)
 
         # Infinite norm diameter
-        rho = max(x_d, y_d) / 2
+        rho = 0.45 #  max(x_d, y_d) / 2
 
         # C*
         c = np.sqrt(d) * pow(2, (d - 2) / (2 * p)) * pow(1 / (1 - pow(2, p - d / 2)) + 1 / (1 - pow(2, -p)), 1 / p)
