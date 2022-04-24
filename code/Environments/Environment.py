@@ -290,7 +290,7 @@ class Environment:
 
         return np.concatenate((pos, goal, obs))
 
-    def sample_next_states(self, states: np.ndarray, action_idx: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def sample_next_states(self, states: np.ndarray, action_idx: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Given the states and actions, sample the next states based on the noise sample
         and calculate the expected rewards
@@ -311,13 +311,26 @@ class Environment:
             stop = start + self.n_samples
             next_state_samples[start:stop, 0:2] = next_pos.T
             next_state_samples[start:stop, 2:] = states[i, 2:]
+            
+        # Check for terminal states
+        dones = np.zeros(n_states* self.n_samples, dtype=bool)
+        
+        # Goals
+        dones = dones | (np.linalg.norm(next_state_samples[:,0:2] - next_state_samples[:,2:4], 2, axis=1) <= self.goal_radius)
+        
+        # Obstacles
+        for i in range(self.num_obstacles):
+            rad = self.obstacles[i].radius
+            start = 4 + 2*i
+            stop = start + 2
+            dones = dones | (np.linalg.norm(next_state_samples[:,0:2] - next_state_samples[:,start:stop], 2, axis=1) <= rad)
 
 
         # Calculate mean of sample rewards
         rewards = self.reward_multi(next_state_samples).reshape(n_states, -1)
         mean_rewards = np.mean(rewards, axis=1)
 
-        return next_state_samples, mean_rewards
+        return next_state_samples, mean_rewards, dones
 
 
 
@@ -506,7 +519,7 @@ class Environment:
         reward += self.sigmoid(states[:, 1], self.y_min, 1, A_o, steep)
         reward += self.sigmoid(states[:, 1], self.y_max, 0, A_o, steep)
 
-        return reward
+        return reward*self.reward_scale
 
 
 

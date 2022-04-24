@@ -83,7 +83,7 @@ class DQN(nn.Module):
             Q = self.fc3(x)
 
         return Q
-
+    
     def initialize_weights(self, m):
         """
         HE initialization
@@ -93,8 +93,11 @@ class DQN(nn.Module):
             nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
 
         # Scale the weights
-        m.weight *= self.init_scale
-        m.bias += self.init_scale
+        with torch.no_grad():
+            m.weight = m.weight * self.init_scale
+            m.bias = m.bias * self.init_scale
+        # m.weight *= self.init_scale
+        # m.bias += self.init_scale
 
 
 class RLDataset(IterableDataset):
@@ -429,13 +432,14 @@ class DRDQN(LightningModule):
         """
 
         # Extract batch
-        states, actions, rewards, dones, next_states, probs, idxs = batch
+        states, actions, rewards, _, next_states, probs, idxs = batch
+        # dones = dones.detach().numpy()
         batch_size = states.shape[0]
 
         state_action_values = self.net(states).gather(1, actions.long().unsqueeze(-1)).squeeze(-1)
 
         # Calculate next states based on the samples
-        next_state_samples, mean_rewards = self.env.sample_next_states(states.detach().numpy(),
+        next_state_samples, mean_rewards, dones = self.env.sample_next_states(states.detach().numpy(),
                                                                        actions.detach().numpy().astype(int))
 
         # Calculate the max q values for each sampled state
@@ -447,12 +451,15 @@ class DRDQN(LightningModule):
                 sums = torch.reshape(torch.sum(exp, dim=1), (-1,))
                 ps = exp / sums[:, None]
                 next_qvals = torch.sum(torch.mul(q_values, ps), dim=1).detach().numpy()
+                next_qvals[dones] = 0.0
 
             # Deterministic
             else:
                 q_values = self.target_net(torch.tensor(next_state_samples, dtype=torch.float32))
                 next_qvals, _ = torch.max(q_values, dim=1)
                 next_qvals = next_qvals.detach().numpy()
+                next_qvals[dones] = 0.0
+                
 
             # Find the expected qvalues for each state by averaging over the samples
             mean_qvals = np.mean(next_qvals.reshape(batch_size, -1), axis=1)
@@ -462,6 +469,8 @@ class DRDQN(LightningModule):
 
         # Lipschitz approximation lower bound
         targets = exp_bellman - self.wasserstein_rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
+        # targets[np.invert(dones)] -= self.wasserstein_rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
+        # targets[dones] -= self.wasserstein_rad * self.lip_reward
         targets = torch.tensor(targets, dtype=torch.float32).detach()
 
         # Prioritized experience replay
