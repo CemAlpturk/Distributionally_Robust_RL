@@ -4,6 +4,8 @@ Testing for DQN Lightning module
 
 import os
 import argparse
+from typing import List, Tuple
+
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
@@ -99,11 +101,26 @@ def multi_traj(args, model):
     total_rewards = []
     n_steps = 50
     net = model.net
+    n_points = int(len(args.points[0])/2)
 
     for i in range(n_traj):
-        model.env = env
-        model.agent.env = env
-        model.agent.reset()
+        if args.points is not None and i < n_points:
+            # Process initial points
+            # Bad fix
+            model.agent.reset()
+            p = args.points[0][i*2:(i+1)*2]
+            s = env.state
+            s[0:2] = np.array(p)
+            env.state = s
+            env.robot._x = np.array(p).reshape(-1,1)
+            model.env = env
+            model.agent.env = env
+            model.agent.state = env.state
+        else:
+            model.env = env
+            model.agent.env = env
+            model.agent.reset()
+            
         states = [model.agent.state]
         episode_reward = 0.0
         for step in range(n_steps):
@@ -136,6 +153,7 @@ if __name__ == '__main__':
     parser.add_argument('--multi_traj', type=int, default=0, help='Number of trajectories for same environment')
     parser.add_argument('--vector_field', action="store_true", help='Add vector field to plots')
     parser.add_argument('--heatmap', action="store_true", help='Add heatmap to plots')
+    parser.add_argument('--points', type=float, nargs='+', action='append', default=None, help='Initial points')
     
     args = parser.parse_args()
     
