@@ -239,6 +239,71 @@ def plot_multiple_initial_positions(env, agent, trajectories, vector_field=False
     # Extract the obstacles and goals from the trajectories
     goal = trajectories[0][0,2:4]
     obstacles = env.obstacles
+    obs = np.array([o.center for o in obstacles]).reshape(-1,)
+    
+    # Plot heatmap
+    if heatmap:
+        # Generate grid for heatmap
+        n = 200
+        x = np.linspace(params['x_lims'][0], params['x_lims'][1], n)
+        y = np.linspace(params['y_lims'][0], params['y_lims'][1], n)
+
+        xx, yy = np.meshgrid(x, y, indexing='ij')
+
+        states = np.zeros((n**2, params['state_size']), dtype=float)
+        for i in range(n):
+            for j in range(n):
+                pos = np.array([xx[i, j], yy[i, j]])
+                states[i * n + j] = env.gen_state(pos, goal, obs)
+
+        # Predict in batch form
+        acts = agent.batch_action(states)
+        actions = np.zeros(xx.shape, dtype=int)
+        num_actions = params['num_actions']
+        for i in range(n):
+            for j in range(n):
+                actions[i, j] = acts[i*n + j]
+
+
+        # ax.imshow(actions, cmap='hsv', alpha=0.4)
+        c = ax.pcolormesh(xx, yy, actions, cmap=plt.cm.get_cmap('jet', num_actions), alpha=0.4, vmin=0, vmax=num_actions-1)
+        cbar = fig.colorbar(c, ticks=range(num_actions), ax=ax)
+        cbar.ax.set_ylabel('Actions')
+        c.set_clim(-0.5, num_actions-0.5)
+        
+    # Plot vector field
+    if vector_field:
+        # Create grid
+        nx = 20  # int(params['x_lims'][1] - params['x_lims'][0])   # number of points n^2
+        ny = 20  # int(params['y_lims'][1] - params['y_lims'][0])
+        x = np.linspace(params['x_lims'][0], params['x_lims'][1], nx)
+        y = np.linspace(params['y_lims'][0], params['y_lims'][1], ny)
+        xv, yv = np.meshgrid(x, y, indexing='ij')
+
+
+
+        d_x = params['x_lims'][1] - params['x_lims'][0]
+        d_y = params['y_lims'][1] - params['y_lims'][0]
+        
+        # Put the states in matrix form
+        states = np.zeros((nx * ny, params['state_size']), dtype=float)
+        for i in range(nx):
+            for j in range(ny):
+                pos = np.array([xv[i, j], yv[i, j]])
+                states[i * ny + j] = env.gen_state(pos, goal, obs)
+
+        # Predict in batch form
+        actions = agent.batch_action(states)
+
+        for i in range(nx * ny):
+            pos = states[i, 0:2]
+            action = env.action_space[:, actions[i]]
+            dx = action[0] / d_x
+            dy = action[1] / d_y
+
+            arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.1)
+            ax.add_patch(arrow)
+        
     
     # Plot the environment
     ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))

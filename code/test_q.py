@@ -115,7 +115,7 @@ def multi_traj(args, model):
         total_rewards.append(episode_reward)
         trajectories.append(np.array(states))
     
-    fig = plot_multiple_initial_positions(env, model, trajectories, vector_field=False, heatmap=False)
+    fig = plot_multiple_initial_positions(env, model, trajectories, vector_field=args.vector_field, heatmap=args.heatmap)
     fig.savefig(f"plots/{args.model_name}_multi_traj.png")
     
 
@@ -134,6 +134,8 @@ if __name__ == '__main__':
     
     # Multi trajectory
     parser.add_argument('--multi_traj', type=int, default=0, help='Number of trajectories for same environment')
+    parser.add_argument('--vector_field', action="store_true", help='Add vector field to plots')
+    parser.add_argument('--heatmap', action="store_true", help='Add heatmap to plots')
     
     args = parser.parse_args()
     
@@ -141,6 +143,11 @@ if __name__ == '__main__':
     print("Loading Model")
     ckpt_path = f"lightning_logs/{args.model_name}/checkpoints/last.ckpt"
     model = DQNLightning.load_from_checkpoint(ckpt_path)
+    
+    # Check if plots directory exists
+    if not os.path.isdir('plots'):
+        print("Creating directory 'plots'")
+        os.mkdir('plots')
     
     # Evaluation
     if args.eval > 0:
