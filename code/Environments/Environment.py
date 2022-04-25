@@ -562,10 +562,10 @@ class Environment:
             action = step_size * np.array([np.cos(angles[i]), np.sin(angles[i])])
             actions[:, i] = action
         self.action_space = actions
-        print("Angles:")
-        print(angles)
-        print("Action Space:")
-        print(self.action_space)
+        # print("Angles:")
+        # print(angles)
+        # print("Action Space:")
+        # print(self.action_space)
 
     @staticmethod
     def _intersection(p, q, s, theta):
