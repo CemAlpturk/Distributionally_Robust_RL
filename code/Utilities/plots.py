@@ -209,3 +209,65 @@ def animate_vector_field(params, env, agent, path, episode, steps=30, show=False
 
     # Delete tmp dir
     shutil.rmtree(tmp_dir)
+    
+
+def plot_multiple_initial_positions(env, agent, trajectories, vector_field=False, heatmap=False):
+    """
+    Plots multiple trajectories with different initial positions in the same environment
+    Assuming the goal and obstacle positions are the same
+    """
+    
+    # Plot settings
+    obstacle_color = 'r'
+    grid = True
+    
+    # Environment parameters
+    params = env.get_env_parameters()
+    
+    # Plot environment
+    fig = plt.figure()
+    ax = fig.add_subplot(
+        111,
+        aspect='equal',
+        xlim=params['x_lims'],
+        ylim=params['y_lims']
+    )
+    if grid:
+        ax.grid()
+        ax.set_axisbelow(True)
+        
+    # Extract the obstacles and goals from the trajectories
+    goal = trajectories[0][0,2:4]
+    obstacles = env.obstacles
+    
+    # Plot the environment
+    ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))
+    
+    for obs in obstacles:
+        pos = obs.center
+        rad = obs.radius
+        circle = plt.Circle(pos, radius=rad, facecolor='r', edgecolor='k')
+        ax.add_patch(circle)
+        
+    # Plot the trajectories
+    for traj in trajectories:
+        xs = traj[:, 0]
+        ys = traj[:, 1]
+        ax.plot(xs, ys, 'r-*')
+        
+        # Initial points
+        x = traj[0, 0]
+        y = traj[0, 1]
+        ax.plot(x, y, 'g-*')
+        
+    return fig
+        
+        
+        
+        
+        
+    
+    
+    
+    
+    
