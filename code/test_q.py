@@ -101,7 +101,10 @@ def multi_traj(args, model):
     total_rewards = []
     n_steps = 50
     net = model.net
-    n_points = int(len(args.points[0])/2)
+    if args.points is not None:
+        n_points = int(len(args.points[0])/2)
+    else:
+        n_points = 0
 
     for i in range(n_traj):
         if args.points is not None and i < n_points:
