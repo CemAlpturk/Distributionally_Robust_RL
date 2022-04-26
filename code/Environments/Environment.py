@@ -324,6 +324,10 @@ class Environment:
             start = 4 + 2*i
             stop = start + 2
             dones = dones | (np.linalg.norm(next_state_samples[:,0:2] - next_state_samples[:,start:stop], 2, axis=1) <= rad)
+            
+        # Borders forgot >:(
+        dones = dones | ((next_state_samples[:,0] <= self.x_min) | (next_state_samples[:,0] >= self.x_max))
+        dones = dones | ((next_state_samples[:,1] <= self.y_min) | (next_state_samples[:,1] >= self.y_max))
 
 
         # Calculate mean of sample rewards
