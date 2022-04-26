@@ -290,16 +290,17 @@ class Environment:
 
         return np.concatenate((pos, goal, obs))
 
-    def sample_next_states(self, states: np.ndarray, action_idx: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def sample_next_states(self, states: np.ndarray, action_idx: np.ndarray, next_states: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Given the states and actions, sample the next states based on the noise sample
-        and calculate the expected rewards
+        and calculate the expected rewards. Additionally uses the next states from the experience batch
         :param states: Current states
         :param action_idx: Taken actions indexes
+        :param next_states: The next states that actually occured during training
         :return: Samples of next states
         """
         n_states = states.shape[0]
-        next_state_samples = np.zeros((n_states * self.n_samples, states.shape[1]), dtype=float)
+        next_state_samples = np.zeros((n_states * (self.n_samples+1), states.shape[1]), dtype=float)
         actions = np.zeros((2, self.n_samples), dtype=float)
         pos = np.zeros((self.n_samples, 2), dtype=float)
         for i in range(n_states):
@@ -307,13 +308,16 @@ class Environment:
             pos[:] = states[i, 0:2]
             actions[:, :] = self.action_space[:, action_idx[i]].reshape(-1, 1)
             next_pos = self.robot.dummy_step(pos.T, actions, self.noise_sample.T)
-            start = i * self.n_samples
+            start = i * (self.n_samples+1) # 1 is added for the next state that comes from the exp batch
             stop = start + self.n_samples
             next_state_samples[start:stop, 0:2] = next_pos.T
             next_state_samples[start:stop, 2:] = states[i, 2:]
             
+            # Add the true experience
+            next_state_samples[stop] = next_states[i]
+            
         # Check for terminal states
-        dones = np.zeros(n_states* self.n_samples, dtype=bool)
+        dones = np.zeros(n_states* (self.n_samples+1), dtype=bool)
         
         # Goals
         dones = dones | (np.linalg.norm(next_state_samples[:,0:2] - next_state_samples[:,2:4], 2, axis=1) <= self.goal_radius)

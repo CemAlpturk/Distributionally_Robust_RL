@@ -90,14 +90,13 @@ class DQN(nn.Module):
         :param m: weights
         """
         if isinstance(m, nn.Linear):
-            nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+            # nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+            n = m.in_features
+            y = self.init_scale/ np.sqrt(n)
+            m.weight.data.uniform_(-y,y)
+            m.bias.data.fill_(0.0)
 
-        # Scale the weights
-        with torch.no_grad():
-            m.weight = m.weight * self.init_scale
-            m.bias = m.bias * self.init_scale
-        # m.weight *= self.init_scale
-        # m.bias += self.init_scale
+      
 
 
 class RLDataset(IterableDataset):
@@ -366,7 +365,7 @@ class DRDQN(LightningModule):
         self.lip_reward = self.env.lip
 
         # Wasserstein radius for the ambiguity set
-        self.wasserstein_rad = self.w_rad()
+        self.wasserstein_rad = 0.0 #self.w_rad()
 
     def populate(self, steps: int = 1000) -> None:
         """
@@ -432,15 +431,16 @@ class DRDQN(LightningModule):
         """
 
         # Extract batch
-        states, actions, rewards, _, next_states, probs, idxs = batch
-        # dones = dones.detach().numpy()
+        states, actions, rewards, dones, next_states, probs, idxs = batch
+        dones = dones.detach().numpy()
         batch_size = states.shape[0]
 
         state_action_values = self.net(states).gather(1, actions.long().unsqueeze(-1)).squeeze(-1)
 
         # Calculate next states based on the samples
-        next_state_samples, mean_rewards, dones = self.env.sample_next_states(states.detach().numpy(),
-                                                                       actions.detach().numpy().astype(int))
+        next_state_samples, mean_rewards, sample_dones = self.env.sample_next_states(states.detach().numpy(),
+                                                                       actions.detach().numpy().astype(int),
+                                                                       next_states.detach().numpy())
 
         # Calculate the max q values for each sampled state
         with torch.no_grad():
@@ -451,14 +451,14 @@ class DRDQN(LightningModule):
                 sums = torch.reshape(torch.sum(exp, dim=1), (-1,))
                 ps = exp / sums[:, None]
                 next_qvals = torch.sum(torch.mul(q_values, ps), dim=1).detach().numpy()
-                next_qvals[dones] = 0.0
+                next_qvals[sample_dones] = 0.0
 
             # Deterministic
             else:
                 q_values = self.target_net(torch.tensor(next_state_samples, dtype=torch.float32))
                 next_qvals, _ = torch.max(q_values, dim=1)
                 next_qvals = next_qvals.detach().numpy()
-                next_qvals[dones] = 0.0
+                next_qvals[sample_dones] = 0.0
                 
 
             # Find the expected qvalues for each state by averaging over the samples
