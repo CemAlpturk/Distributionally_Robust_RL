@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from pytorch_lightning import LightningModule
 from torch import Tensor, nn
+from torch.nn.utils.parametrizations import spectral_norm
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import IterableDataset
@@ -93,11 +94,12 @@ class DQN(nn.Module):
             # nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
             n = m.in_features
             y = self.init_scale/ np.sqrt(n)
-            m.weight.data.uniform_(-y,y)
-            m.bias.data.fill_(0.0)
+            nn.init.uniform_(m.weight, -y, y)
+            # m.weight.data.uniform_(-y,y)
+            # m.bias.data.fill_(0.0)
+    
 
       
-
 
 class RLDataset(IterableDataset):
     """
@@ -244,7 +246,9 @@ class DRDQN(LightningModule):
             lip_network: bool = False,
             weight_scale: float = 1.0,
             dueling_max: bool = True,
-            reward_scale: float = 1.0
+            reward_scale: float = 1.0,
+            weight_decay: float = 0.0,
+            w_rad: float = None
     ) -> None:
         """
 
@@ -280,6 +284,7 @@ class DRDQN(LightningModule):
         :param weight_scale: Scale for the initial weights
         :param dueling_max: Whether to use max or mean in aggregation
         :param reward_scale: For rescaling the rewards when plotting
+        :param weight_decay: Regularization parameter
         """
         super().__init__()
         self.save_hyperparameters()
@@ -365,7 +370,12 @@ class DRDQN(LightningModule):
         self.lip_reward = self.env.lip
 
         # Wasserstein radius for the ambiguity set
-        self.wasserstein_rad = 0.0 #self.w_rad()
+        if w_rad is None:
+            self.wasserstein_rad = self.w_rad()
+        else:
+            self.wasserstein_rad = w_rad
+            
+        print(f"Wasserstein radius set to {self.wasserstein_rad}")
 
     def populate(self, steps: int = 1000) -> None:
         """
@@ -489,6 +499,7 @@ class DRDQN(LightningModule):
             loss = (w * (state_action_values - targets) ** 2).mean()
         else:
             loss = nn.MSELoss()(state_action_values, targets)
+        
         return loss
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
@@ -585,7 +596,7 @@ class DRDQN(LightningModule):
                 l_max = np.max(ls)
                 self.lip_const = l_max
                 self.log("Lip_time", ts)
-
+       
         self.log("lip", self.lip_const)
 
 
@@ -633,7 +644,7 @@ class DRDQN(LightningModule):
         Initialize Optimizers
         :return: Optimizers
         """
-        optimizer = Adam(self.net.parameters(), lr=self.hparams.lr, eps=1e-07)  # eps ??
+        optimizer = Adam(self.net.parameters(), lr=self.hparams.lr, eps=1e-07, weight_decay=self.hparams.weight_decay)  # eps ??
         return [optimizer]
 
     def __dataloader(self) -> DataLoader:
