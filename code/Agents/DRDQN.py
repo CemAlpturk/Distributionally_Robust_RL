@@ -248,7 +248,8 @@ class DRDQN(LightningModule):
             dueling_max: bool = True,
             reward_scale: float = 1.0,
             weight_decay: float = 0.0,
-            w_rad: float = None
+            w_rad: float = None,
+            kappa: float = 1.0
     ) -> None:
         """
 
@@ -285,6 +286,8 @@ class DRDQN(LightningModule):
         :param dueling_max: Whether to use max or mean in aggregation
         :param reward_scale: For rescaling the rewards when plotting
         :param weight_decay: Regularization parameter
+        :param w_rad: Manually set wasserstein radius
+        :param kappa: Scaling for the networks
         """
         super().__init__()
         self.save_hyperparameters()
@@ -467,7 +470,7 @@ class DRDQN(LightningModule):
             else:
                 q_values = self.target_net(torch.tensor(next_state_samples, dtype=torch.float32))
                 next_qvals, _ = torch.max(q_values, dim=1)
-                next_qvals = next_qvals.detach().numpy()
+                next_qvals = next_qvals.detach().numpy() * self.hparams.kappa
                 next_qvals[sample_dones] = 0.0
                 
 
@@ -478,10 +481,10 @@ class DRDQN(LightningModule):
             exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
 
         # Lipschitz approximation lower bound
-        targets = exp_bellman - self.wasserstein_rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
+        targets = exp_bellman - self.wasserstein_rad * (self.hparams.gamma * self.lip_const * self.hparams.kappa + self.lip_reward)
         # targets[np.invert(dones)] -= self.wasserstein_rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
         # targets[dones] -= self.wasserstein_rad * self.lip_reward
-        targets = torch.tensor(targets, dtype=torch.float32).detach()
+        targets = torch.tensor(targets/self.hparams.kappa, dtype=torch.float32).detach()
 
         # Prioritized experience replay
         if self.hparams.priority:
@@ -775,7 +778,7 @@ class DRDQN(LightningModule):
         x_d = abs(self.env.x_max - self.env.x_min)
         y_d = abs(self.env.y_max - self.env.y_min)
 
-        # Infinite norm diameter
+        # Infinite norm radius
         rho = 0.45 #  max(x_d, y_d) / 2
 
         # C*
