@@ -18,7 +18,7 @@ cov = 0.15 * np.identity(2)
 num_actions = 8
 obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0]), 2)]
 goal = [0.0, 5.0]
-reward_scale = 1e-3
+reward_scale = 1.0
 lims = [[-10, 10], [-10, 10]]
 env = Environment(num_actions=num_actions,
                   cov=cov,
@@ -29,7 +29,7 @@ env = Environment(num_actions=num_actions,
                   reward_scale=reward_scale)
 num_states = env.state_size
 
-num_episodes = 50000
+num_episodes = 250000
 episode_length = 50
 num_epochs = num_episodes * episode_length
 frame = int(0.75 * num_epochs)
@@ -38,7 +38,7 @@ model = DRDQN(env=env,
               batch_size=32,
               lr=1e-4,
               gamma=0.9,
-              sync_rate=5000,
+              sync_rate=15000,
               replay_size=5000,
               warm_start_size=1000,
               eps_last_frame=frame,
@@ -57,10 +57,13 @@ model = DRDQN(env=env,
               dueling_max=False,
               priority=False,
               num_neurons=150,
-              conf=0.9,
+              conf=0.99,
               reward_scale=reward_scale,
-              weight_scale=1e-1,
-              lip_network = True
+              weight_scale=1.0,
+              lip_network=False,
+              weight_decay=0.01,
+              w_rad=1e-4,
+              kappa = 1.0
               )
 
 # Best model checkpoint
@@ -70,7 +73,7 @@ best_checkpoint = ModelCheckpoint(
     mode="max",
     # dirpath="models/",
     filename="best",
-    save_weights_only=True
+    save_weights_only=False
 )
 
 # Last model checkpoint
@@ -80,7 +83,7 @@ last_checkpoint = ModelCheckpoint(
     mode="max",
     # dirpath="models/",
     filename="last",
-    save_weights_only=True
+    save_weights_only=False
 )
 
 trainer = Trainer(
