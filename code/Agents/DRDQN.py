@@ -249,6 +249,7 @@ class DRDQN(LightningModule):
             reward_scale: float = 1.0,
             weight_decay: float = 0.0,
             w_rad: float = None,
+            rad_last_frame: int = 1000,
             kappa: float = 1.0
     ) -> None:
         """
@@ -287,6 +288,7 @@ class DRDQN(LightningModule):
         :param reward_scale: For rescaling the rewards when plotting
         :param weight_decay: Regularization parameter
         :param w_rad: Manually set wasserstein radius
+        :param rad_last_frame: When to use full radius
         :param kappa: Scaling for the networks
         """
         super().__init__()
@@ -468,7 +470,10 @@ class DRDQN(LightningModule):
 
             # Deterministic
             else:
+                # TODO: Implement double dqn
                 q_values = self.target_net(torch.tensor(next_state_samples, dtype=torch.float32))
+                # next_actions = self.net(torch.tensor(next_state_samples, dtype=torch.float32)).argmax(1)
+                # next_qvals = q_values.gather(1, next_actions.unsqueeze(-1)).squeeze(-1)
                 next_qvals, _ = torch.max(q_values, dim=1)
                 next_qvals = next_qvals.detach().numpy() * self.hparams.kappa
                 next_qvals[sample_dones] = 0.0
@@ -479,9 +484,13 @@ class DRDQN(LightningModule):
 
             # Expected value for the bellman equation sampled from the nominal distribution
             exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
+            
+        # Get radius
+        rad = self.get_rad()
+        self.log("rad", rad)
 
         # Lipschitz approximation lower bound
-        targets = exp_bellman - self.wasserstein_rad * (self.hparams.gamma * self.lip_const * self.hparams.kappa + self.lip_reward)
+        targets = exp_bellman - rad * (self.hparams.gamma * self.lip_const * self.hparams.kappa + self.lip_reward)
         # targets[np.invert(dones)] -= self.wasserstein_rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
         # targets[dones] -= self.wasserstein_rad * self.lip_reward
         targets = torch.tensor(targets/self.hparams.kappa, dtype=torch.float32).detach()
@@ -534,9 +543,21 @@ class DRDQN(LightningModule):
         Get current value for beta
         :return: beta
         """
+        if self.global_step > self.hparams.beta_last_frame:
+            return self.hparams.beta_max
         beta = self.hparams.beta0 + self.global_step * (self.hparams.beta_max - self.hparams.beta0) / \
                self.hparams.beta_last_frame
         return beta
+    
+    def get_rad(self):
+        """
+        Get the current value for the Wasserstein radius
+        :return: rad
+        """
+        if self.global_step > self.hparams.rad_last_frame:
+            return self.wasserstein_rad
+        rad = self.global_step * self.wasserstein_rad / self.hparams.rad_last_frame
+        return rad
 
     def training_step(self, batch: Tuple[Tensor, Tensor], nb_batch) -> OrderedDict:
         """
@@ -772,20 +793,34 @@ class DRDQN(LightningModule):
         # Check constraints
         assert p < d / 2, "p < d/2 constraint does not hold"
         assert 0.0 < beta < 1.0, "Confidence beta must be in the interval (0,1)"
+        
+        # Calculate the diameter of support
+        samples = self.env.noise_sample
+        
+        # Mean of the samples
+        sample_means = np.mean(samples, axis=0)
+        
+        # Distance to the means (inf norm)
+        sample_dists = np.linalg.norm(sample_means - samples, np.inf, axis=1)
+        rad = np.max(sample_dists, axis=0)
+        diam = 2*rad
+        
+        # Calculate Wasserstein radius
+        eps = diam * np.sqrt(2*np.log(1/beta)/n)
 
         # Diameter of the support for the state distributions
         # Although infinite, it's assumed to be limited by the limits of the environment
-        x_d = abs(self.env.x_max - self.env.x_min)
-        y_d = abs(self.env.y_max - self.env.y_min)
+        # x_d = abs(self.env.x_max - self.env.x_min)
+        # y_d = abs(self.env.y_max - self.env.y_min)
 
         # Infinite norm radius
-        rho = 0.45 #  max(x_d, y_d) / 2
-
+        # rho = 0.45 #  max(x_d, y_d) / 2
+        
         # C*
-        c = np.sqrt(d) * pow(2, (d - 2) / (2 * p)) * pow(1 / (1 - pow(2, p - d / 2)) + 1 / (1 - pow(2, -p)), 1 / p)
+        # c = np.sqrt(d) * pow(2, (d - 2) / (2 * p)) * pow(1 / (1 - pow(2, p - d / 2)) + 1 / (1 - pow(2, -p)), 1 / p)
 
         # Radius eps
-        eps = rho * (c * pow(n, -1 / d) + np.sqrt(d) * pow(2 * np.log(1 / beta), 1 / (2 * p)) * pow(n, -1 / (2 * p)))
+        # eps = rho * (c * pow(n, -1 / d) + np.sqrt(d) * pow(2 * np.log(1 / beta), 1 / (2 * p)) * pow(n, -1 / (2 * p)))
 
         # Log the radius
         self.log("Radius", eps)
