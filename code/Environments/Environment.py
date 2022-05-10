@@ -473,7 +473,7 @@ class Environment:
         delta = 0.1
 
         # Goal position
-        A_g = 10
+        A_g = 100
         dist = self.goal_radius * 0.95 - np.linalg.norm(pos - goal, 2)
         reward += self.tanh(dist, delta, A_g)
 
