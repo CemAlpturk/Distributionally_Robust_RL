@@ -20,47 +20,42 @@ env = Environment(num_actions=num_actions,
                   cov=cov,
                   lims=lims,
                   obstacles=obstacles,
-                  static_obs=False,
-                  goal=None,
+                  static_obs=True,
+                  goal=goal,
                   reward_scale=reward_scale)
 num_states = env.state_size
 
-num_episodes = 200000
+num_episodes = 100000
 episode_length = 50
 num_epochs = num_episodes * episode_length
 frame = int(0.75 * num_epochs)
 
-# model = DQNLightning(env=env,
-#               batch_size=32,
-#               lr=1e-4,
-#               gamma=0.9,
-#               sync_rate=5000,
-#               replay_size=5000,
-#               warm_start_size=1000,
-#               eps_last_frame=frame,
-#               eps_start=1.0,
-#               eps_end=0.1,
-#               episode_length=episode_length,
-#               lamb_min=3.0,
-#               lamb_max=40.0,
-#               lamb_last_frame=frame,
-#               alpha=0.7,
-#               beta0=0.5,
-#               beta_max=1.0,
-#               beta_last_frame=frame,
-#               stochastic=False,
-#               dueling=True,
-#               # dueling_max=False,
-#               priority=True,
-#               num_neurons=150,
-#               # conf=0.9,
-#               # reward_scale=reward_scale,
-#               # weight_scale=1e-1,
-#               # lip_network = True
-#               )
+model = DQNLightning(env=env,
+              batch_size=32,
+              lr=1e-4,
+              gamma=0.9,
+              sync_rate=5000,
+              replay_size=5000,
+              warm_start_size=1000,
+              eps_last_frame=frame,
+              eps_start=1.0,
+              eps_end=0.1,
+              episode_length=episode_length,
+              lamb_min=3.0,
+              lamb_max=40.0,
+              lamb_last_frame=frame,
+              alpha=0.7,
+              beta0=0.5,
+              beta_max=1.0,
+              beta_last_frame=frame,
+              stochastic=False,
+              dueling=True,
+              priority=True,
+              num_neurons=150,
+              )
 
 # Load model
-model = DQNLightning.load_from_checkpoint('lightning_logs/test/checkpoints/last.ckpt')
+# model = DQNLightning.load_from_checkpoint('lightning_logs/test/checkpoints/last.ckpt')
 
 # Best model checkpoint
 best_checkpoint = ModelCheckpoint(

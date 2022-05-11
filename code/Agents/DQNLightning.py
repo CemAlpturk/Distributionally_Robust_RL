@@ -151,6 +151,9 @@ class Agent:
         Returns:
             action
         """
+        # Null action
+        if self.env.check_terminal(self.state):
+            return self.env.num_actions
         if np.random.random() < epsilon:
             # action = self.env.action_space.sample()
             action = np.random.choice(range(self.env.num_actions))
@@ -263,7 +266,7 @@ class DQNLightning(LightningModule):
 
         self.env = env  # gym.make(self.hparams.env)
         obs_size = env.state_size
-        n_actions = env.num_actions
+        n_actions = env.num_actions + 1
         # obs_size = self.env.observation_space.shape[0]
         # n_actions = self.env.action_space.n
 
@@ -366,7 +369,7 @@ class DQNLightning(LightningModule):
                 ps = exp / sums[:, None]  # torch.div(exp, sums)
                 next_state_values = torch.mean(torch.mul(next_state_values, ps), dim=1)
 
-            next_state_values[dones] = 0.0
+            # next_state_values[dones] = 0.0
             next_state_values = next_state_values.detach()
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards

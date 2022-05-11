@@ -239,7 +239,10 @@ class Environment:
 
         # Input check
         # assert a.shape == (2, 1), f"a has shape {a.shape}, must have (2,1)"
-        action = self.action_space[:, [a]]
+        if a is None:
+            action = None
+        else:
+            action = self.action_space[:, [a]]
         w = self._gen_noise()
         new_pos = self.robot.step(u=action, w=w)
         col = self.is_collision(new_pos)
@@ -256,6 +259,25 @@ class Environment:
         reward = self.reward()
 
         return self.state.copy(), reward, end, goal, col
+    
+    def check_terminal(self, state):
+        pos = state[0:2]
+        goal = state[2:4]
+        obs = state[4:]
+        
+        # Check goal state
+        if np.linalg.norm(pos-goal,2) <= self.goal_radius:
+            return True
+        
+        # Check obstacles
+        for i in range(len(self.obstacles)):
+            start = i*2
+            stop = start + 2
+            o = obs[start:stop]
+            if np.linalg.norm(pos-o,2) <= self.obstacles[i].radius:
+                return True
+        
+        return not self.is_inside(pos)
 
     def get_dists(self, pos=None):
         """
@@ -366,17 +388,6 @@ class Environment:
             pos = self.state[0:2]
         if rad is None:
             rad = self.robot.radius
-        # for obs in self.obstacles:
-        #     # Check distances to obstacles
-        #     d, _ = obs.closest_dist(pos)
-        #
-        #     if d <= self.robot.radius:
-        #         return True
-        #
-        #     # Check if the robot is inside the obstacle (necessary?)
-        #     if obs.edges[3][0] <= pos[0] <= obs.edges[0][0] and \
-        #             obs.edges[1][1] <= pos[1] <= obs.edges[0][1]:
-        #         return True
 
         dists = self.get_dists(pos)
         if np.sum(dists <= rad) > 0:
@@ -384,43 +395,6 @@ class Environment:
 
         # return not self.is_inside(pos)
         return False
-
-    # def check_sensors(self, p=None):
-    #     """
-    #     For each sensor check the distance to the closest obstacle in its direction
-    #     :return: distances
-    #     """
-    #
-    #     if p is None:
-    #         p = self.robot.get_state()
-    #
-    #     dist = []
-    #
-    #     for i in range(self.robot.num_sensors):
-    #         d = float("inf")
-    #
-    #         theta = self.robot.sensor_angles[i]
-    #         r = np.array([np.cos(theta), np.sin(theta)])
-    #
-    #         # Check distance to borders
-    #         for j in range(4):
-    #             q = np.array(self.edges[j])
-    #             s = np.array(self.edges[(j + 1) % 4]) - q
-    #             di = self._intersection(p, q, s, theta)
-    #             if di < d:
-    #                 d = di
-    #
-    #         # Check distance to obstacles
-    #         for obs in self.obstacles:
-    #             num_edges = len(obs.edges)
-    #             for j in range(num_edges):
-    #                 q = np.array(obs.edges[j])
-    #                 s = np.array(obs.edges[(j + 1) % num_edges]) - q
-    #                 di = self._intersection(p, q, s, theta)
-    #                 if di < d:
-    #                     d = di
-    #         dist.append(d)
-    #     return np.array(dist)
 
     def get_state_lims(self):
         """
@@ -473,7 +447,7 @@ class Environment:
         delta = 0.1
 
         # Goal position
-        A_g = 100
+        A_g = 10
         dist = self.goal_radius * 0.95 - np.linalg.norm(pos - goal, 2)
         reward += self.tanh(dist, delta, A_g)
 
@@ -565,10 +539,13 @@ class Environment:
         """
         angles = np.linspace(0, 2 * np.pi, self.num_actions, endpoint=False) + np.pi / 2
         step_size = 1
-        actions = np.zeros((2, self.num_actions))
+        actions = np.zeros((2, self.num_actions+1))
         for i in range(self.num_actions):
             action = step_size * np.array([np.cos(angles[i]), np.sin(angles[i])])
             actions[:, i] = action
+        
+        # Null Action
+        actions[:,-1] = 0
         self.action_space = actions
         # print("Angles:")
         # print(angles)

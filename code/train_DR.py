@@ -18,7 +18,7 @@ cov = 0.1 * np.identity(2)
 num_actions = 8
 obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0]), 2)]
 goal = [0.0, 5.0]
-reward_scale = 1e-2
+reward_scale = 1e-1
 lims = [[-10, 10], [-10, 10]]
 env = Environment(num_actions=num_actions,
                   cov=cov,
