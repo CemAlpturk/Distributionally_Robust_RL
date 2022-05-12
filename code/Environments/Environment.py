@@ -452,7 +452,7 @@ class Environment:
         reward += self.tanh(dist, delta, A_g)
 
         # Obstacles
-        A_o = -10
+        A_o = -20
         for obs in self.obstacles:
             dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
             reward += self.tanh(dist, delta, A_o)

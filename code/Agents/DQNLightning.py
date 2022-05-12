@@ -173,7 +173,7 @@ class Agent:
 
             # Deterministic
             else:
-                _, action = torch.max(q_values, dim=1)
+                _, action = torch.max(q_values[:, :-1], dim=1)
                 action = int(action.item())
 
         return action
