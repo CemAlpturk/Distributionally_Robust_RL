@@ -12,6 +12,7 @@ from matplotlib import pyplot as plt
 import imageio
 import shutil
 from tqdm import tqdm
+import torch
 
 
 def plot_vector_field(params, env, agent, path=None, goal=None, show=False, episode_path=None, trajectory=None, heatmap=True):
@@ -325,6 +326,84 @@ def plot_multiple_initial_positions(env, agent, trajectories, vector_field=False
         y = traj[0, 1]
         ax.plot(x, y, 'g-*')
         
+    return fig
+
+def plot_values(env, agent, show_env=False):
+    # Plot settings
+    obstacle_color = 'r'
+    grid = True
+
+    # Environment parameters
+    params = env.get_env_parameters()
+
+    # Plot environment
+    fig = plt.figure()
+    ax = fig.add_subplot(
+        111,
+        aspect='equal',
+        xlim=params['x_lims'],
+        ylim=params['y_lims']
+    )
+    if grid:
+        ax.grid()
+        ax.set_axisbelow(True)
+
+    # Extract the obstacles and goals from the trajectories
+    goal = env.goal
+    obstacles = env.obstacles
+    obs = np.array([o.center for o in obstacles]).reshape(-1, )
+
+    # Plot heatmap
+
+    # Generate grid for heatmap
+    n = 200
+    x = np.linspace(params['x_lims'][0], params['x_lims'][1], n)
+    y = np.linspace(params['y_lims'][0], params['y_lims'][1], n)
+
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+
+    states = np.zeros((n ** 2, params['state_size']), dtype=float)
+    for i in range(n):
+        for j in range(n):
+            pos = np.array([xx[i, j], yy[i, j]])
+            states[i * n + j] = env.gen_state(pos, goal, obs)
+
+    # Predict in batch form
+    preds = agent.net(torch.Tensor(states)).detach().numpy()
+    q_vals = np.max(preds, axis=1)
+    q = np.zeros(xx.shape, dtype=int)
+    # num_actions = params['num_actions']
+    for i in range(n):
+        for j in range(n):
+            q[i, j] = q_vals[i * n + j]
+
+    # ax.imshow(actions, cmap='hsv', alpha=0.4)
+    c = ax.pcolormesh(xx, yy, q, cmap=plt.cm.get_cmap('jet'), alpha=1)
+    cbar = fig.colorbar(c, ax=ax)
+    # cbar.ax.set_ylabel('Actions')
+    # c.set_clim(-0.5, num_actions - 0.5)
+
+    if show_env:
+        # Plot the environment
+        ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.3, facecolor='g', edgecolor='k'))
+
+        for obs in obstacles:
+            pos = obs.center
+            rad = obs.radius
+            circle = plt.Circle(pos, radius=rad, facecolor='r', edgecolor='k', alpha=0.3)
+            ax.add_patch(circle)
+
+        # Plot the trajectories
+    # for traj in trajectories:
+    #     xs = traj[:, 0]
+    #     ys = traj[:, 1]
+    #     ax.plot(xs, ys, 'r-*')
+    #
+    #     # Initial points
+    #     x = traj[0, 0]
+    #     y = traj[0, 1]
+    #     ax.plot(x, y, 'g-*')
+
     return fig
         
         

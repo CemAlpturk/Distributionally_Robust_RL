@@ -11,7 +11,7 @@ from PIL import ImageTk
 
 from Agents.DQNLightning import DQNLightning
 from Environments.Environment import Environment
-from Utilities.plots import plot_multiple_initial_positions
+from Utilities.plots import plot_multiple_initial_positions, plot_values
 
 
 class GUI:
@@ -28,6 +28,9 @@ class GUI:
 
         self.model = None
         self.env = None
+        self.x = 0
+        self.y = 0
+        self.selected_model = False
 
         # Root
         self.root = Tk()
@@ -35,12 +38,14 @@ class GUI:
         self.root.title('Demo')
         self.root.resizable(False, False)
 
-
+        self.plot_frame = Frame(self.root)
+        self.plot_frame.grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
+        # self.plot_frame.bind("<Button 1>", self.getorigin)
         fig = self.get_empty_plot()
-        self.chart = FigureCanvasTkAgg(fig, self.root)
+        self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
         self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
+        # self.chart.show()
         plt.close(fig)
-
 
         # Simulate Button
         self.button_simulate = Button(self.root, text="Simulate", command=self.simulate)
@@ -59,8 +64,10 @@ class GUI:
         self.button_reset = Button(self.root, text="Reset")
         # self.button_reset.pack()
 
+        self.button_q = Button(self.root, text="Q_values", command=self.get_qvals)
+
         # Exit Button
-        self.button_exit = Button(self.root, text="Exit")
+        self.button_exit = Button(self.root, text="Exit", command=self.root.destroy)
         # self.button_exit.pack()
 
         # Save Button
@@ -105,7 +112,7 @@ class GUI:
         # self.button_model.grid(column=1, row=2, sticky=E + W,  padx=5, pady=5)
         self.button_simulate.grid(column=1, row=2, sticky=E + W, padx=5, pady=5)
         self.button_randomize.grid(column=1, row=3, sticky=E + W, padx=5, pady=5)
-        self.button_reset.grid(column=1, row=4, sticky=E + W, padx=5, pady=5)
+        self.button_q.grid(column=1, row=4, sticky=E + W, padx=5, pady=5)
         self.button_initial.grid(column=1, row=5, sticky=E + W, padx=5, pady=5)
         self.box_heatmap.grid(column=1, row=6, sticky=E + W, padx=5, pady=5)
         self.box_vector.grid(column=1, row=7, sticky=E + W, padx=5, pady=5)
@@ -139,9 +146,12 @@ class GUI:
             messagebox.showerror("Model Error", "An error ocured while loading model")
             return
 
+        self.selected_model = True
         self.simulate()
 
     def simulate(self, *args):
+        if not self.selected_model:
+            return
         # Create Environment
         cov = 0.15 * np.identity(2)
         num_actions = 8
@@ -154,7 +164,9 @@ class GUI:
                           obstacles=obstacles,
                           static_obs=True,
                           goal=goal)
+        self.env = env
         self.model.agent.reset()
+        # p = [self.x, self.y]
         p = [0.0, -5.0]
         s = env.state
         s[0:2] = np.array(p)
@@ -176,11 +188,33 @@ class GUI:
             if done:
                 break
         trajectory = [np.array(states)]
-        fig = plot_multiple_initial_positions(env, self.model, trajectory)
+        fig = plot_multiple_initial_positions(env,
+                                              self.model,
+                                              trajectory,
+                                              vector_field=self.vector.get(),
+                                              heatmap=self.heatmap.get())
 
-        self.chart = FigureCanvasTkAgg(fig, self.root)
+        self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
         self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
+        # self.chart.get_tk_widget().pack()
         plt.close(fig)
+
+    def getorigin(self, eventorigin):
+        self.x = eventorigin.x
+        self.y = eventorigin.y
+        print(self.x, self.y)
+        self.simulate()
+
+    def get_qvals(self, *args):
+        if not self.selected_model:
+            return
+
+        fig = plot_values(self.env, self.model, show_env=True)
+        self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
+        self.chart.get_tk_widget().grid(column=0, row=0, sticky=E+W, columnspan=1, rowspan=10)
+
+        plt.close(fig)
+
 
 if __name__ == '__main__':
     gui = GUI()
