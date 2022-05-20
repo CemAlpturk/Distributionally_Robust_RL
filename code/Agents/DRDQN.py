@@ -157,6 +157,8 @@ class Agent:
         :param stoch: Stochastic policy
         :return: action
         """
+        # if self.env.check_terminal(self.state):
+            # return self.env.num_actions
         if np.random.random() < epsilon:
             action = np.random.choice(range(self.env.num_actions))
         else:
@@ -171,7 +173,7 @@ class Agent:
 
             # Deterministic
             else:
-                _, action = torch.max(q_values, dim=1)
+                _, action = torch.max(q_values[:,:-1], dim=1)
                 action = int(action.item())
 
         return action
@@ -296,7 +298,7 @@ class DRDQN(LightningModule):
 
         self.env = env
         obs_size = env.state_size
-        n_actions = env.num_actions
+        n_actions = env.num_actions + 1
 
         self.env_params = env.get_env_parameters()
 
@@ -475,8 +477,9 @@ class DRDQN(LightningModule):
                 # next_actions = self.net(torch.tensor(next_state_samples, dtype=torch.float32)).argmax(1)
                 # next_qvals = q_values.gather(1, next_actions.unsqueeze(-1)).squeeze(-1)
                 next_qvals, _ = torch.max(q_values, dim=1)
+                # next_qvals[sample_dones] = q_values[sample_dones, -1]
                 next_qvals = next_qvals.detach().numpy() * self.hparams.kappa
-                next_qvals[sample_dones] = 0.0
+                # next_qvals[sample_dones] = 0.0
                 
 
             # Find the expected qvalues for each state by averaging over the samples
@@ -593,7 +596,7 @@ class DRDQN(LightningModule):
 
         # Episode ends if max steps or the goal has been reached
         # Agent is allowed to continue if a collision occurs for training purposes
-        reset = goal or self.episode_step >= self.hparams.episode_length
+        reset = done or self.episode_step >= self.hparams.episode_length
         if reset:
             self.agent.reset(lamb)
             self.episodes_done += 1
@@ -714,7 +717,7 @@ class DRDQN(LightningModule):
         """
         x = torch.Tensor(states)
         q_values = self.net(x)
-        actions = torch.argmax(q_values, dim=1).detach().numpy()
+        actions = torch.argmax(q_values[:,:-1], dim=1).detach().numpy()
         return actions
 
     def save_weights(self, a: int = None) -> None:

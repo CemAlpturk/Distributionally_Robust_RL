@@ -152,8 +152,8 @@ class Agent:
             action
         """
         # Null action
-        if self.env.check_terminal(self.state):
-            return self.env.num_actions
+        #if self.env.check_terminal(self.state):
+            #return self.env.num_actions
         if np.random.random() < epsilon:
             # action = self.env.action_space.sample()
             action = np.random.choice(range(self.env.num_actions))
@@ -173,7 +173,7 @@ class Agent:
 
             # Deterministic
             else:
-                _, action = torch.max(q_values[:, :-1], dim=1)
+                _, action = torch.max(q_values, dim=1)
                 action = int(action.item())
 
         return action
@@ -266,7 +266,7 @@ class DQNLightning(LightningModule):
 
         self.env = env  # gym.make(self.hparams.env)
         obs_size = env.state_size
-        n_actions = env.num_actions + 1
+        n_actions = env.num_actions
         # obs_size = self.env.observation_space.shape[0]
         # n_actions = self.env.action_space.n
 
@@ -405,6 +405,8 @@ class DQNLightning(LightningModule):
         return start + (self.global_step / frames) * (end - start)
 
     def get_beta(self):
+        if self.global_step > self.hparams.beta_last_frame:
+            return self.hparams.beta_max
         beta = self.hparams.beta0 + self.global_step * (self.hparams.beta_max - self.hparams.beta0) / \
                self.hparams.beta_last_frame
         return beta

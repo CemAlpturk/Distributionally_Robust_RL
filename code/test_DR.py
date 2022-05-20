@@ -1,5 +1,5 @@
 """
-Testing for DQN Lightning module
+Testing for DRDQN module
 """
 
 import os
@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from Environments.Environment import Environment
-from Agents.DQNLightning import DQNLightning
+from Agents.DRDQN import DRDQN
 from Utilities.plots import plot_vector_field, plot_multiple_initial_positions, plot_values
 
 
@@ -25,7 +25,7 @@ def evaluate(args, model):
     num_actions = 8
     obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0]), 2)]
     goal = [0.0, 5.0] if args.static_goal else None
-    reward_scale = 1.0
+    reward_scale = 1e-1
     lims = [[-10, 10], [-10, 10]]
     env = Environment(num_actions=num_actions,
                       cov=cov,
@@ -136,16 +136,16 @@ def multi_traj(args, model):
         trajectories.append(np.array(states))
     
     fig = plot_multiple_initial_positions(env, model, trajectories, vector_field=args.vector_field, heatmap=args.heatmap)
-    fig.suptitle("DQN Policy")
+    fig.suptitle("DRDQN Policy")
     fig.savefig(f"plots/{args.model_name}_multi_traj.png")
     
-
+    
 def values(args, model):
     # Create environment
     cov = args.cov * np.identity(2)
     num_actions = 8
-    obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0]), 2)]
-    goal = [0.0, 5.0]
+    obstacles = [(np.array([-7, -1.25]), 2), (np.array([0.0, -1.25]), 2)]
+    goal = [4.0, 5.0]
     reward_scale = 1.0
     lims = [[-10, 10], [-10, 10]]
     env = Environment(num_actions=num_actions,
@@ -156,9 +156,8 @@ def values(args, model):
                       goal=goal,
                       reward_scale=reward_scale)
     fig = plot_values(env, model, show_env=True)
-    fig.suptitle("DQN State Values")
+    # fig.suptitle("DRDQN State Values")
     fig.savefig(f"plots/{args.model_name}_values.png")
-    
 
 
 
@@ -186,8 +185,8 @@ if __name__ == '__main__':
     
     # Load model
     print("Loading Model")
-    ckpt_path = f"lightning_logs/{args.model_name}/checkpoints/last.ckpt"
-    model = DQNLightning.load_from_checkpoint(ckpt_path)
+    ckpt_path = f"lightning_logs/{args.model_name}/checkpoints/best.ckpt"
+    model = DRDQN.load_from_checkpoint(ckpt_path)
     
     # Check if plots directory exists
     if not os.path.isdir('plots'):
@@ -212,7 +211,6 @@ if __name__ == '__main__':
     if args.multi_traj > 0:
         print(f"Generating {args.multi_traj} trajectories for the static environment")
         multi_traj(args, model)
-        
         
     if args.values:
         print("Generating value plot")

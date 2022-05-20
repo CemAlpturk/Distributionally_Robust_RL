@@ -14,30 +14,36 @@ from Agents.DRDQN import DRDQN
 AVAIL_GPUS = min(1, torch.cuda.device_count())
 
 # Noise dist
-cov = 0.1 * np.identity(2)
+cov = 0.15 * np.identity(2)
 num_actions = 8
 obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0]), 2)]
 goal = [0.0, 5.0]
-reward_scale = 1e-1
+reward_scale = 1.0
 lims = [[-10, 10], [-10, 10]]
+A_t = -0.01
+A_g = 1
+A_o = -2
 env = Environment(num_actions=num_actions,
                   cov=cov,
                   lims=lims,
                   obstacles=obstacles,
-                  static_obs=True,
-                  goal=goal,
+                  static_obs=False,
+                  goal=None,
                   reward_scale=reward_scale,
-                  n_samples=10000)
+                  n_samples=10000,
+                  A_t=A_t,
+                  A_g=A_g,
+                  A_o=A_o)
 num_states = env.state_size
 
-num_episodes = 10000
+num_episodes = 2500
 episode_length = 50
 num_epochs =  num_episodes * episode_length
 frame = int(0.75 * num_epochs)
 
 model = DRDQN(env=env,
               batch_size=32,
-              lr=5e-4,
+              lr=1e-4,
               gamma=0.9,
               sync_rate=1500,
               replay_size=5000,
@@ -58,14 +64,14 @@ model = DRDQN(env=env,
               dueling=False,
               dueling_max=False,
               priority=True,
-              num_neurons=250,
+              num_neurons=150,
               conf=0.1,
               reward_scale=reward_scale,
               weight_scale=1.0,
               lip_network=False,
               weight_decay=0.0,
               w_rad=None,
-              rad_last_frame=frame,
+              rad_last_frame=1,
               kappa = 1.0
               )
 
