@@ -20,7 +20,7 @@ class Environment:
                  lims=None,
                  settings=None,
                  n_samples: int = 100,
-                 reward_scale: float = 1.0)
+                 reward_scale: float = 1.0):
                  #A_g: float = 10.0,
                  #A_o: float = -10.0,
                  #A_t: float = -0.01,
