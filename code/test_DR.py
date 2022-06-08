@@ -23,17 +23,25 @@ def evaluate(args, model):
     # Create environment
     cov = args.cov * np.identity(2)
     num_actions = 8
-    obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0]), 2)]
-    goal = [0.0, 5.0] if args.static_goal else None
-    reward_scale = 1e-1
+    obstacles = [(np.array([-7, 1.5]), 2), (np.array([0, 1.5]), 2)]
+    goal = [4, 5.0] if args.static_goal else None
+    reward_scale = 1
     lims = [[-10, 10], [-10, 10]]
+    A_t = -0.01
+    A_g = 1
+    A_o = -10
+    A_b = -10
     env = Environment(num_actions=num_actions,
                       cov=cov,
                       lims=lims,
                       obstacles=obstacles,
                       static_obs=args.static_obs,
                       goal=goal,
-                      reward_scale=reward_scale)
+                      reward_scale=reward_scale,
+                      A_t=A_t,
+                      A_g=A_g,
+                      A_o=A_o,
+                      A_b=A_b)
     
     # Fix model and agent env
     model.env = env
@@ -84,17 +92,25 @@ def multi_traj(args, model):
     # Create environment
     cov = args.cov * np.identity(2)
     num_actions = 8
-    obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0]), 2)]
-    goal = [0.0, 5.0]
+    obstacles = [(np.array([-7, -1.5]), 2), (np.array([0.0, -1.5]), 2)]
+    goal = [4,5]
     reward_scale = 1.0
     lims = [[-10, 10], [-10, 10]]
+    A_t = -0.01
+    A_g = 1
+    A_o = -10
+    A_b = -10
     env = Environment(num_actions=num_actions,
                       cov=cov,
                       lims=lims,
                       obstacles=obstacles,
                       static_obs=True,
                       goal=goal,
-                      reward_scale=reward_scale)
+                      reward_scale=reward_scale,
+                      A_t=A_t,
+                      A_g=A_g,
+                      A_o=A_o,
+                      A_b=A_b)
 
     n_traj = args.multi_traj
     trajectories = []
@@ -144,8 +160,8 @@ def values(args, model):
     # Create environment
     cov = args.cov * np.identity(2)
     num_actions = 8
-    obstacles = [(np.array([-7, -1.25]), 2), (np.array([0.0, -1.25]), 2)]
-    goal = [4.0, 5.0]
+    obstacles = [(np.array([-7, -1.5]), 2), (np.array([0, -1.5]), 2)]
+    goal = [4, 5]
     reward_scale = 1.0
     lims = [[-10, 10], [-10, 10]]
     env = Environment(num_actions=num_actions,
