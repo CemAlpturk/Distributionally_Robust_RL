@@ -151,9 +151,7 @@ class Agent:
         Returns:
             action
         """
-        # Null action
-        # if self.env.check_terminal(self.state):
-        # return self.env.num_actions
+
         if np.random.random() < epsilon:
             # action = self.env.action_space.sample()
             action = np.random.choice(range(self.env.num_actions))

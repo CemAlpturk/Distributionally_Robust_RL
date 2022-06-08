@@ -153,6 +153,7 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
         xs = trajectory[:, 0]
         ys = trajectory[:, 1]
         ax.plot(xs, ys, 'r-*')
+        ax.plot(xs[0],ys[0],'g-*')
 
 
     return fig
@@ -302,6 +303,8 @@ def plot_multiple_initial_positions(env, agent, trajectories, vector_field=False
             dx = action[0] / d_x
             dy = action[1] / d_y
 
+            if dx == 0 and dy == 0:
+                continue
             arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.1)
             ax.add_patch(arrow)
         
@@ -371,7 +374,7 @@ def plot_values(env, agent, show_env=False):
     # Predict in batch form
     preds = agent.net(torch.Tensor(states)).detach().numpy()
     q_vals = np.max(preds, axis=1)
-    q = np.zeros(xx.shape, dtype=int)
+    q = np.zeros(xx.shape, dtype=float)
     # num_actions = params['num_actions']
     for i in range(n):
         for j in range(n):
@@ -405,6 +408,10 @@ def plot_values(env, agent, show_env=False):
     #     ax.plot(x, y, 'g-*')
 
     return fig
+<<<<<<< HEAD
+=======
+
+>>>>>>> 74a5dd7f2d76c3b9414339b10e4712a12c9ff2d3
         
         
         

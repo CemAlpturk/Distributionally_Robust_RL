@@ -21,6 +21,10 @@ class Environment:
                  settings=None,
                  n_samples: int = 100,
                  reward_scale: float = 1.0):
+                 #A_g: float = 10.0,
+                 #A_o: float = -10.0,
+                 #A_t: float = -0.01,
+                 #A_b: float = -10.0):
         """
         Constructor for the Map class
         """
@@ -38,6 +42,11 @@ class Environment:
         else:
             self.x_min, self.x_max = lims[0]
             self.y_min, self.y_max = lims[1]
+            
+        #self.A_g = A_g
+        #self.A_o = A_o
+        #self.A_t = A_t
+        #self.A_b = A_b
 
         # Generate edges Necessary??
         upper_right = [self.x_max, self.y_max]
@@ -346,10 +355,10 @@ class Environment:
         
         # Obstacles
         for i in range(self.num_obstacles):
-            rad = self.obstacles[i].radius
-            start = 4 + 2*i
-            stop = start + 2
-            dones = dones | (np.linalg.norm(next_state_samples[:,0:2] - next_state_samples[:,start:stop], 2, axis=1) <= rad)
+           rad = self.obstacles[i].radius
+           start = 4 + 2*i
+           stop = start + 2
+           dones = dones | (np.linalg.norm(next_state_samples[:,0:2] - next_state_samples[:,start:stop], 2, axis=1) <= rad)
             
         # Borders forgot >:(
         dones = dones | ((next_state_samples[:,0] <= self.x_min) | (next_state_samples[:,0] >= self.x_max))
@@ -441,31 +450,36 @@ class Environment:
         pos = self.state[0:2]
         goal = self.state[2:4]
         # Continuous rewards
-        reward = -0.01
+        #reward = self.A_t
+        reward = -0.001
 
         # Steepness of the sigmoids
         delta = 0.1
 
         # Goal position
-        A_g = 10
+        #A_g = self.A_g
+        A_g = 1
         dist = self.goal_radius * 0.95 - np.linalg.norm(pos - goal, 2)
         reward += self.tanh(dist, delta, A_g)
 
         # Obstacles
-        A_o = -20
+        #A_o = self.A_o
+        A_o = -1
         for obs in self.obstacles:
             dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
             reward += self.tanh(dist, delta, A_o)
 
         # Borders
-        reward += self.sigmoid(pos[0], self.x_min, 1, A_o, 1/delta)
-        reward += self.sigmoid(pos[0], self.x_max, 0, A_o, 1/delta)
-        reward += self.sigmoid(pos[1], self.y_min, 1, A_o, 1/delta)
-        reward += self.sigmoid(pos[1], self.y_max, 0, A_o, 1/delta)
+        #A_b = self.A_b
+        A_b = A_o
+        reward += self.sigmoid(pos[0], self.x_min, 1, A_b, 1/delta)
+        reward += self.sigmoid(pos[0], self.x_max, 0, A_b, 1/delta)
+        reward += self.sigmoid(pos[1], self.y_min, 1, A_b, 1/delta)
+        reward += self.sigmoid(pos[1], self.y_max, 0, A_b, 1/delta)
 
         # Lipschitz constant of the reward function, Approximation :(
         # Note: Apply all changes made to the reward function here !!!
-        self.lip = max(abs(A_g), abs(A_o))/(2*delta)*self.reward_scale
+        self.lip = max(abs(A_g), abs(A_o), abs(A_b))/(2*delta)*self.reward_scale
 
         return reward*self.reward_scale
 
@@ -477,15 +491,18 @@ class Environment:
         :param states: States to calculate rewards
         :return: rewards
         """
-        reward = -0.01 * np.ones(states.shape[0])
+        A_t = -0.001
+        reward = A_t * np.ones(states.shape[0])
 
         # Goal position
-        A_g = 10
+        # A_g = self.A_g
+        A_g = 1
         dist = self.goal_radius * 0.95 - np.linalg.norm(states[:, 0:2] - states[:, 2:4], ord=2, axis=1)
         reward += self.tanh(dist, 0.1, A_g)
 
         # Obstacles
-        A_o = -10
+        # A_o = self.A_o
+        A_o = -1
         if self.num_obstacles > 0:  # Necessary?? probably
             obs_rads = np.array([obs.radius for obs in self.obstacles])
             for i in range(self.num_obstacles):
@@ -495,11 +512,13 @@ class Environment:
                 reward += self.tanh(dist, 0.1, A_o)
 
         # Borders
+        # A_b = self.A_b
+        A_b = A_o
         steep = 10
-        reward += self.sigmoid(states[:, 0], self.x_min, 1, A_o, steep)
-        reward += self.sigmoid(states[:, 0], self.x_max, 0, A_o, steep)
-        reward += self.sigmoid(states[:, 1], self.y_min, 1, A_o, steep)
-        reward += self.sigmoid(states[:, 1], self.y_max, 0, A_o, steep)
+        reward += self.sigmoid(states[:, 0], self.x_min, 1, A_b, steep)
+        reward += self.sigmoid(states[:, 0], self.x_max, 0, A_b, steep)
+        reward += self.sigmoid(states[:, 1], self.y_min, 1, A_b, steep)
+        reward += self.sigmoid(states[:, 1], self.y_max, 0, A_b, steep)
 
         return reward*self.reward_scale
 

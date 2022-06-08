@@ -16,7 +16,7 @@ from scipy.io import savemat
 import matlab.engine
 
 from .Memory import Memory
-from Utilities.plots import plot_vector_field, animate_vector_field
+from Utilities.plots import plot_vector_field, animate_vector_field, plot_values
 from Environments.Environment import Environment
 
 # ????
@@ -157,6 +157,9 @@ class Agent:
         :param stoch: Stochastic policy
         :return: action
         """
+        # Null policy
+        if self.env.check_terminal(self.state):
+            return self.env.num_actions # Null action
         if np.random.random() < epsilon:
             action = np.random.choice(range(self.env.num_actions))
         else:
@@ -296,7 +299,7 @@ class DRDQN(LightningModule):
 
         self.env = env
         obs_size = env.state_size
-        n_actions = env.num_actions
+        n_actions = env.num_actions + 1
 
         self.env_params = env.get_env_parameters()
 
@@ -373,6 +376,8 @@ class DRDQN(LightningModule):
 
         # Lipschitz constant of the reward function
         self.lip_reward = self.env.lip
+        
+        self.lip_gamma = 0.0
 
         # Wasserstein radius for the ambiguity set
         if w_rad is None:
@@ -459,14 +464,15 @@ class DRDQN(LightningModule):
 
         # Calculate the max q values for each sampled state
         with torch.no_grad():
-            # Stochastic
+            # Stochastic 
+            # TODO: fix
             if self.hparams.stochastic:
                 q_values = self.target_net(next_state_samples)
                 exp = torch.exp(q_values)
                 sums = torch.reshape(torch.sum(exp, dim=1), (-1,))
                 ps = exp / sums[:, None]
                 next_qvals = torch.sum(torch.mul(q_values, ps), dim=1).detach().numpy()
-                next_qvals[sample_dones] = 0.0
+                # next_qvals[sample_dones] = 0.0
 
             # Deterministic
             else:
@@ -475,25 +481,28 @@ class DRDQN(LightningModule):
                 # next_actions = self.net(torch.tensor(next_state_samples, dtype=torch.float32)).argmax(1)
                 # next_qvals = q_values.gather(1, next_actions.unsqueeze(-1)).squeeze(-1)
                 next_qvals, _ = torch.max(q_values, dim=1)
+                next_qvals[sample_dones] = q_values[sample_dones, -1]
                 next_qvals = next_qvals.detach().numpy() * self.hparams.kappa
                 next_qvals[sample_dones] = 0.0
                 
 
             # Find the expected qvalues for each state by averaging over the samples
+            # gammas = self.gamma(next_state_samples)
+            # next_qvals = gammas * next_qvals
             mean_qvals = np.mean(next_qvals.reshape(batch_size, -1), axis=1)
 
             # Expected value for the bellman equation sampled from the nominal distribution
-            exp_bellman = mean_rewards + self.hparams.gamma * mean_qvals
+            exp_bellman = mean_rewards +  self.hparams.gamma * mean_qvals
             
         # Get radius
         rad = self.get_rad()
         self.log("rad", rad)
 
         # Lipschitz approximation lower bound
-        targets = exp_bellman - rad * (self.hparams.gamma * self.lip_const * self.hparams.kappa + self.lip_reward)
+        targets = exp_bellman - rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
         # targets[np.invert(dones)] -= self.wasserstein_rad * (self.hparams.gamma * self.lip_const + self.lip_reward)
         # targets[dones] -= self.wasserstein_rad * self.lip_reward
-        targets = torch.tensor(targets/self.hparams.kappa, dtype=torch.float32).detach()
+        targets = torch.tensor(targets, dtype=torch.float32).detach()
 
         # Prioritized experience replay
         if self.hparams.priority:
@@ -513,6 +522,42 @@ class DRDQN(LightningModule):
             loss = nn.MSELoss()(state_action_values, targets)
         
         return loss
+    
+    def gamma(self, states):
+    
+        gamma_0 = self.hparams.gamma
+        g = gamma_0
+        delta = 0.1
+        
+        self.lip_gamma = self.hparams.gamma/(2*delta)
+        
+        pos = states[:,0:2]
+        goal = states[:,2:4]
+        obs = states[:,4:]
+        num_obs = self.env.num_obstacles
+        goal_radius = self.env.goal_radius
+        
+        
+        # Goal position
+        dist = goal_radius - np.linalg.norm(pos - goal,2, axis=1)
+        g += -gamma_0*(1 + np.tanh(dist/delta))/2
+    
+#         # Obstacles
+#         for i in range(num_obs):
+#             rad = self.env.obstacles[i].radius
+#             start = i*num_obs
+#             end = start + 2
+#             dist = rad - np.linalg.norm(pos - obs[:,start:end], 2, axis=1)
+#             g += -gamma_0*(1 + np.tanh(dist/delta))/2
+        
+#         # Borders
+#         g += -gamma_0*(1 + np.tanh((self.env.x_min - pos[:, 0])/delta))/2
+#         g += -gamma_0*(1 + np.tanh((pos[:, 0] - self.env.x_max)/delta))/2
+#         g += -gamma_0*(1 + np.tanh((self.env.y_min - pos[:, 1])/delta))/2
+#         g += -gamma_0*(1 + np.tanh((pos[:, 1] - self.env.y_max)/delta))/2
+        
+        return g
+        
 
     def get_epsilon(self, start: int, end: int, frames: int) -> float:
         """
@@ -661,6 +706,10 @@ class DRDQN(LightningModule):
         fig = plot_vector_field(self.env_params, env=self.env, agent=self, trajectory=trajectory)
         tensorboard = self.logger.experiment
         tensorboard.add_figure("vector_field", fig, global_step=self.global_step)
+        
+        fig2 = plot_values(self.env, self, show_env=True)
+        tensorboard.add_figure("values", fig2, global_step=self.global_step)
+        
         return {"avg_test_reward": avg_reward}
 
     def configure_optimizers(self) -> List[Optimizer]:
@@ -714,7 +763,7 @@ class DRDQN(LightningModule):
         """
         x = torch.Tensor(states)
         q_values = self.net(x)
-        actions = torch.argmax(q_values, dim=1).detach().numpy()
+        actions = torch.argmax(q_values[:,:-1], dim=1).detach().numpy()
         return actions
 
     def save_weights(self, a: int = None) -> None:
