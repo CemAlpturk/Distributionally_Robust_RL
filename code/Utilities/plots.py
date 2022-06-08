@@ -153,6 +153,7 @@ def plot_vector_field(params, env, agent, path=None, goal=None, show=False, epis
         xs = trajectory[:, 0]
         ys = trajectory[:, 1]
         ax.plot(xs, ys, 'r-*')
+        ax.plot(xs[0],ys[0],'g-*')
 
 
     return fig
