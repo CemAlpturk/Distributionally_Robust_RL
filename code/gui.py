@@ -40,7 +40,7 @@ class GUI:
 
         self.plot_frame = Frame(self.root)
         self.plot_frame.grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
-        # self.plot_frame.bind("<Button 1>", self.getorigin)
+        self.root.bind("<Button 1>", self.getorigin)
         fig = self.get_empty_plot()
         self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
         self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
@@ -102,22 +102,34 @@ class GUI:
         self.combo_model.bind('<<ComboboxSelected>>', self.load_model)
         # self.button_model = Button(self.root, text="Load Model")
 
+        self.scale = Scale(self.root, from_=0.0, to=0.2, orient=HORIZONTAL, command=self.get_scale)
+        self.scale_label = Label(self.root, text="Cov = 0.00")
+
+        # Radio Buttons
+        self.model_type = IntVar()
+        self.radio_DQN = Radiobutton(self.root, text="DQN", value=0, variable=self.model_type)
+        self.radio_DRDQN = Radiobutton(self.root, text="DRDQN", value=1, variable=self.model_type)
+
         self.place()
         self.root.mainloop()
 
     def place(self):
         # self.plot.grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
-        self.combo_model.grid(column=1, row=0, sticky=E + W, padx=5, pady=5,
+        self.combo_model.grid(column=1, row=1, padx=5, pady=5,
                               rowspan=2)
         # self.button_model.grid(column=1, row=2, sticky=E + W,  padx=5, pady=5)
-        self.button_simulate.grid(column=1, row=2, sticky=E + W, padx=5, pady=5)
-        self.button_randomize.grid(column=1, row=3, sticky=E + W, padx=5, pady=5)
-        self.button_q.grid(column=1, row=4, sticky=E + W, padx=5, pady=5)
-        self.button_initial.grid(column=1, row=5, sticky=E + W, padx=5, pady=5)
-        self.box_heatmap.grid(column=1, row=6, sticky=E + W, padx=5, pady=5)
-        self.box_vector.grid(column=1, row=7, sticky=E + W, padx=5, pady=5)
-        self.button_save.grid(column=1, row=8, sticky=E + W, padx=5, pady=5)
-        self.button_exit.grid(column=1, row=9, sticky=E + W, padx=5, pady=5)
+        self.button_simulate.grid(column=1, row=3, padx=5, pady=5)
+        self.button_randomize.grid(column=2, row=3, padx=5, pady=5)
+        self.button_q.grid(column=1, row=4, padx=5, pady=5)
+        self.button_initial.grid(column=1, row=5, padx=5, pady=5)
+        self.box_heatmap.grid(column=1, row=6, padx=5, pady=5)
+        self.box_vector.grid(column=1, row=7, padx=5, pady=5)
+        self.scale.grid(column=1, row=8, padx=5, pady=5)
+        self.scale_label.grid(column=1, row=9, padx=5, pady=5)
+        self.button_save.grid(column=1, row=10, padx=5, pady=5)
+        self.button_exit.grid(column=2, row=10, padx=5, pady=5)
+        self.radio_DQN.grid(column=1, row=0, padx=5, pady=5)
+        self.radio_DRDQN.grid(column=2, row=0, padx=5, pady=5)
 
     @staticmethod
     def get_models():
@@ -141,7 +153,10 @@ class GUI:
         print(model_name)
         model_path = f"lightning_logs/{model_name}/checkpoints/last.ckpt"
         try:
+            #if self.model_type == 0:
             self.model = DQNLightning.load_from_checkpoint(model_path)
+            #else:
+            #return
         except:
             messagebox.showerror("Model Error", "An error ocured while loading model")
             return
@@ -153,7 +168,7 @@ class GUI:
         if not self.selected_model:
             return
         # Create Environment
-        cov = 0.15 * np.identity(2)
+        cov = self.scale.get() * np.identity(2)
         num_actions = 8
         obstacles = [(np.array([-3.5, 0.0]), 2), (np.array([3.5, 0.0]), 2)]
         goal = [0.0, 5.0]
@@ -166,8 +181,8 @@ class GUI:
                           goal=goal)
         self.env = env
         self.model.agent.reset()
-        # p = [self.x, self.y]
-        p = [0.0, -5.0]
+        p = [self.x, self.y]
+        # p = [0.0, -5.0]
         s = env.state
         s[0:2] = np.array(p)
         env.state = s
@@ -200,10 +215,23 @@ class GUI:
         plt.close(fig)
 
     def getorigin(self, eventorigin):
-        self.x = eventorigin.x
-        self.y = eventorigin.y
-        print(self.x, self.y)
-        self.simulate()
+        if self.env is None:
+            return
+        x = eventorigin.x
+        y = -eventorigin.y
+        print(f"Event: ({x},{y})")
+        x_lim = [108, 385]
+        y_lim = [-322, -45]
+        x_grad = (self.env.x_max - self.env.x_min)/(x_lim[1] - x_lim[0])
+        y_grad = (self.env.y_max - self.env.y_min)/(y_lim[1] - y_lim[0])
+        plot_x = x*x_grad - 108 - self.env.x_min + 80.15
+        plot_y = y*y_grad - 45 - self.env.y_min + 48.1
+
+        # Check
+        if self.env.x_min <= plot_x <= self.env.x_max and self.env.y_min <= plot_y <= self.env.y_max:
+            self.x = plot_x
+            self.y = plot_y
+            self.simulate()
 
     def get_qvals(self, *args):
         if not self.selected_model:
@@ -214,6 +242,12 @@ class GUI:
         self.chart.get_tk_widget().grid(column=0, row=0, sticky=E+W, columnspan=1, rowspan=10)
 
         plt.close(fig)
+
+    def get_scale(self, *args):
+        selection = f"Cov = {self.scale.get():0.2f}"
+        self.scale_label.config(text=selection)
+
+
 
 
 if __name__ == '__main__':
