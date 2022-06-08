@@ -8,10 +8,90 @@ from tkinter.ttk import *
 from tkinter import messagebox
 from PIL import Image
 from PIL import ImageTk
+import torch
+from torch import nn, Tensor
 
 from Agents.DQNLightning import DQNLightning
 from Environments.Environment import Environment
-from Utilities.plots import plot_multiple_initial_positions, plot_values
+from Utilities.plots import plot_multiple_initial_positions, \
+    plot_values, plot_from_network, plot_values_from_network
+
+
+# Import for DRDQN models, not needed if matlab engine is installed
+class DQN(nn.Module):
+    """
+    Dense DQN Network
+    """
+
+    def __init__(self,
+                 state_size: int,
+                 n_actions: int,
+                 hidden_size: int = 100,
+                 dueling: bool = False,
+                 dueling_max: bool = True,
+                 init_scale: float = 1.0):
+        """
+        :param state_size: Input size
+        :param n_actions: Output size
+        :param hidden_size: Number of hidden neurons
+        :param dueling: Dueling architecture
+        :param dueling_max: Whether to use max or mean in aggregation layer
+        :param init_scale: Initial parameter scaling
+        """
+        super(DQN, self).__init__()
+        self.dueling = dueling
+        self.dueling_max = dueling_max
+        self.init_scale = init_scale
+        self.fc1 = nn.Linear(state_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+
+        self.relu = nn.ReLU()
+
+        if dueling:
+            self.value = nn.Linear(hidden_size, 1)
+            self.adv = nn.Linear(hidden_size, n_actions)
+        else:
+            self.fc3 = nn.Linear(hidden_size, n_actions)
+
+        # Weight Initialization
+        self.apply(self.initialize_weights)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass
+        :param x: Input tensor
+        :return: Output tensor
+        """
+        x = self.fc1(x.float())
+        x = self.relu(x)
+        x = self.fc2(x)
+        x = self.relu(x)
+        if self.dueling:
+            value = self.value(x)
+            adv = self.adv(x)
+
+            if self.dueling_max:
+                agg, _ = torch.max(adv, dim=1, keepdim=True)
+            else:
+                agg = torch.mean(adv, dim=1, keepdim=True)
+            Q = value + adv - agg
+        else:
+            Q = self.fc3(x)
+
+        return Q
+
+    def initialize_weights(self, m):
+        """
+        HE initialization
+        :param m: weights
+        """
+        if isinstance(m, nn.Linear):
+            # nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+            n = m.in_features
+            y = self.init_scale / np.sqrt(n)
+            nn.init.uniform_(m.weight, -y, y)
+            # m.weight.data.uniform_(-y,y)
+            # m.bias.data.fill_(0.0)
 
 
 class GUI:
@@ -107,8 +187,16 @@ class GUI:
 
         # Radio Buttons
         self.model_type = IntVar()
-        self.radio_DQN = Radiobutton(self.root, text="DQN", value=0, variable=self.model_type)
-        self.radio_DRDQN = Radiobutton(self.root, text="DRDQN", value=1, variable=self.model_type)
+        self.radio_DQN = Radiobutton(self.root,
+                                     text="DQN",
+                                     value=0,
+                                     variable=self.model_type,
+                                     command=self.get_model_list)
+        self.radio_DRDQN = Radiobutton(self.root,
+                                       text="DRDQN",
+                                       value=1,
+                                       variable=self.model_type,
+                                       command=self.get_model_list)
 
         self.place()
         self.root.mainloop()
@@ -133,7 +221,7 @@ class GUI:
 
     @staticmethod
     def get_models():
-        models_path = 'lightning_logs'
+        models_path = 'models/DQN'
         models = os.listdir(models_path)
         return models
 
@@ -145,20 +233,34 @@ class GUI:
         ax.set_axisbelow(True)
         return fig
 
+    def get_model_list(self):
+        if self.model_type.get() == 0:
+            models = self.get_models()
+        else:
+            models_path = 'models/DRDQN'
+            models = os.listdir(models_path)
+        self.combo_model['values'] = models
+
     def load_model(self, *args):
         model_name = self.combo_model.get()
         if model_name == "":
             print('No model selected')
             return
-        print(model_name)
-        model_path = f"lightning_logs/{model_name}/checkpoints/last.ckpt"
         try:
-            #if self.model_type == 0:
-            self.model = DQNLightning.load_from_checkpoint(model_path)
-            #else:
-            #return
-        except:
+            # DQN
+            if self.model_type.get() == 0:
+                model_path = f"models/DQN/{model_name}/checkpoints/last.ckpt"
+                self.model = DQNLightning.load_from_checkpoint(model_path)
+
+            # DRDQN
+            else:
+                model_path = f"models/DRDQN/{model_name}"
+                self.model = DQN(state_size=8, n_actions=9, hidden_size=150)
+                self.model.load_state_dict(torch.load(model_path))
+
+        except Exception as e:
             messagebox.showerror("Model Error", "An error ocured while loading model")
+            print(e)
             return
 
         self.selected_model = True
@@ -180,39 +282,78 @@ class GUI:
                           static_obs=True,
                           goal=goal)
         self.env = env
-        self.model.agent.reset()
-        p = [self.x, self.y]
-        # p = [0.0, -5.0]
-        s = env.state
-        s[0:2] = np.array(p)
-        env.state = s
-        env.robot._x = np.array(p).reshape(-1, 1)
-        self.model.env = env
-        self.model.agent.env = env
-        self.model.agent.state = env.state
+        if self.model_type.get() == 0:
+            self.model.agent.reset()
+            p = [self.x, self.y]
+            # p = [0.0, -5.0]
+            s = env.state
+            s[0:2] = np.array(p)
+            env.state = s
+            env.robot._x = np.array(p).reshape(-1, 1)
+            self.model.env = env
+            self.model.agent.env = env
+            self.model.agent.state = env.state
 
-        states = [self.model.agent.state]
-        net = self.model.net
+            states = [self.model.agent.state]
+            net = self.model.net
 
-        n_steps = 50
-        episode_reward = 0.0
-        for step in range(n_steps):
-            reward, done, goal = self.model.agent.play_step(net, epsilon=0.0)
-            episode_reward += reward
-            states.append(self.model.agent.state)
-            if done:
-                break
-        trajectory = [np.array(states)]
-        fig = plot_multiple_initial_positions(env,
-                                              self.model,
-                                              trajectory,
-                                              vector_field=self.vector.get(),
-                                              heatmap=self.heatmap.get())
+            n_steps = 50
+            episode_reward = 0.0
+            for step in range(n_steps):
+                reward, done, goal = self.model.agent.play_step(net, epsilon=0.0)
+                episode_reward += reward
+                states.append(self.model.agent.state)
+                if done:
+                    break
+            trajectory = [np.array(states)]
+            fig = plot_multiple_initial_positions(env,
+                                                  self.model,
+                                                  trajectory,
+                                                  vector_field=self.vector.get(),
+                                                  heatmap=self.heatmap.get())
 
-        self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
-        self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
-        # self.chart.get_tk_widget().pack()
-        plt.close(fig)
+            self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
+            self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
+            # self.chart.get_tk_widget().pack()
+            plt.close(fig)
+
+        else:
+            # DRDQN simulation
+            p = [self.x, self.y]
+            s = self.env.state
+            s[0:2] = np.array(p)
+            env.state = s
+            env.robot._x = np.array(p).reshape(-1, 1)
+            states = [s]
+
+            n_steps = 50
+            episode_reward = 0.0
+
+            for step in range(n_steps):
+                # Select action with null-policy
+                state = torch.tensor(np.array([s])).to('cpu')
+                q_values = self.model(state)
+                _, action = torch.max(q_values[:, :-1], dim=1)
+                action = int(action.item())
+                new_state, reward, done, _, _ = self.env.step(action)
+                episode_reward += reward
+
+                s = new_state
+                states.append(s)
+                if done:
+                    break
+
+            trajectory = [np.array(states)]
+            fig = plot_from_network(self.model,
+                                    env,
+                                    trajectory,
+                                    vector_field=self.vector.get(),
+                                    heatmap=self.heatmap.get())
+
+            self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
+            self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
+            # self.chart.get_tk_widget().pack()
+            plt.close(fig)
 
     def getorigin(self, eventorigin):
         if self.env is None:
@@ -222,10 +363,10 @@ class GUI:
         print(f"Event: ({x},{y})")
         x_lim = [108, 385]
         y_lim = [-322, -45]
-        x_grad = (self.env.x_max - self.env.x_min)/(x_lim[1] - x_lim[0])
-        y_grad = (self.env.y_max - self.env.y_min)/(y_lim[1] - y_lim[0])
-        plot_x = x*x_grad - 108 - self.env.x_min + 80.15
-        plot_y = y*y_grad - 45 - self.env.y_min + 48.1
+        x_grad = (self.env.x_max - self.env.x_min) / (x_lim[1] - x_lim[0])
+        y_grad = (self.env.y_max - self.env.y_min) / (y_lim[1] - y_lim[0])
+        plot_x = x * x_grad - 108 - self.env.x_min + 80.15
+        plot_y = y * y_grad - 45 - self.env.y_min + 48.1
 
         # Check
         if self.env.x_min <= plot_x <= self.env.x_max and self.env.y_min <= plot_y <= self.env.y_max:
@@ -237,17 +378,24 @@ class GUI:
         if not self.selected_model:
             return
 
-        fig = plot_values(self.env, self.model, show_env=True)
-        self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
-        self.chart.get_tk_widget().grid(column=0, row=0, sticky=E+W, columnspan=1, rowspan=10)
+        if self.model_type.get() == 0:
 
-        plt.close(fig)
+            fig = plot_values(self.env, self.model, show_env=True)
+            self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
+            self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
+
+            plt.close(fig)
+
+        else:
+            fig = plot_values_from_network(self.model, self.env, show_env=True)
+            self.chart = FigureCanvasTkAgg(fig, self.plot_frame)
+            self.chart.get_tk_widget().grid(column=0, row=0, sticky=E + W, columnspan=1, rowspan=10)
+
+            plt.close(fig)
 
     def get_scale(self, *args):
         selection = f"Cov = {self.scale.get():0.2f}"
         self.scale_label.config(text=selection)
-
-
 
 
 if __name__ == '__main__':

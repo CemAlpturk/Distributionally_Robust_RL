@@ -269,9 +269,9 @@ def plot_multiple_initial_positions(env, agent, trajectories, vector_field=False
 
         # ax.imshow(actions, cmap='hsv', alpha=0.4)
         c = ax.pcolormesh(xx, yy, actions, cmap=plt.cm.get_cmap('jet', num_actions), alpha=0.4, vmin=0, vmax=num_actions-1)
-        cbar = fig.colorbar(c, ticks=range(num_actions), ax=ax)
-        cbar.ax.set_ylabel('Actions')
-        c.set_clim(-0.5, num_actions-0.5)
+        #cbar = fig.colorbar(c, ticks=range(num_actions), ax=ax)
+        #cbar.ax.set_ylabel('Actions')
+        #c.set_clim(-0.5, num_actions-0.5)
         
     # Plot vector field
     if vector_field:
@@ -408,11 +408,211 @@ def plot_values(env, agent, show_env=False):
     #     ax.plot(x, y, 'g-*')
 
     return fig
-<<<<<<< HEAD
-=======
 
->>>>>>> 74a5dd7f2d76c3b9414339b10e4712a12c9ff2d3
-        
+
+def plot_from_network(net, env, trajectories, vector_field=False, heatmap=False):
+    """
+    Duplicate function that plots directly from neural network
+    Can merge with original but too lazy to do so :(
+    :param net:
+    :param env:
+    :param trajectories:
+    :param vector_field:
+    :param heatmap:
+    :return:
+    """
+    # Plot settings
+    obstacle_color = 'r'
+    grid = True
+
+    # Environment parameters
+    params = env.get_env_parameters()
+
+    # Plot environment
+    fig = plt.figure()
+    ax = fig.add_subplot(
+        111,
+        aspect='equal',
+        xlim=params['x_lims'],
+        ylim=params['y_lims']
+    )
+    if grid:
+        ax.grid()
+        ax.set_axisbelow(True)
+
+    # Extract the obstacles and goals from the trajectories
+    goal = trajectories[0][0, 2:4]
+    obstacles = env.obstacles
+    obs = np.array([o.center for o in obstacles]).reshape(-1, )
+
+    # Plot heatmap
+    if heatmap:
+        # Generate grid for heatmap
+        n = 200
+        x = np.linspace(params['x_lims'][0], params['x_lims'][1], n)
+        y = np.linspace(params['y_lims'][0], params['y_lims'][1], n)
+
+        xx, yy = np.meshgrid(x, y, indexing='ij')
+
+        states = np.zeros((n ** 2, params['state_size']), dtype=float)
+        for i in range(n):
+            for j in range(n):
+                pos = np.array([xx[i, j], yy[i, j]])
+                states[i * n + j] = env.gen_state(pos, goal, obs)
+
+        # Predict in batch form
+        # acts = agent.batch_action(states)
+        x = torch.Tensor(states)
+        q_values = net(x)
+        acts = torch.argmax(q_values[:, :-1], dim=1).detach().numpy()
+        actions = np.zeros(xx.shape, dtype=int)
+        num_actions = params['num_actions']
+        for i in range(n):
+            for j in range(n):
+                actions[i, j] = acts[i * n + j]
+
+        # ax.imshow(actions, cmap='hsv', alpha=0.4)
+        c = ax.pcolormesh(xx, yy, actions, cmap=plt.cm.get_cmap('jet', num_actions), alpha=0.4, vmin=0,
+                          vmax=num_actions - 1)
+        #cbar = fig.colorbar(c, ticks=range(num_actions), ax=ax)
+        #cbar.ax.set_ylabel('Actions')
+        #c.set_clim(-0.5, num_actions - 0.5)
+
+    # Plot vector field
+    if vector_field:
+        # Create grid
+        nx = 20  # int(params['x_lims'][1] - params['x_lims'][0])   # number of points n^2
+        ny = 20  # int(params['y_lims'][1] - params['y_lims'][0])
+        x = np.linspace(params['x_lims'][0], params['x_lims'][1], nx)
+        y = np.linspace(params['y_lims'][0], params['y_lims'][1], ny)
+        xv, yv = np.meshgrid(x, y, indexing='ij')
+
+        d_x = params['x_lims'][1] - params['x_lims'][0]
+        d_y = params['y_lims'][1] - params['y_lims'][0]
+
+        # Put the states in matrix form
+        states = np.zeros((nx * ny, params['state_size']), dtype=float)
+        for i in range(nx):
+            for j in range(ny):
+                pos = np.array([xv[i, j], yv[i, j]])
+                states[i * ny + j] = env.gen_state(pos, goal, obs)
+
+        # Predict in batch form
+        #actions = agent.batch_action(states)
+        x = torch.Tensor(states)
+        q_values = net(x)
+        actions = torch.argmax(q_values[:, :-1], dim=1).detach().numpy()
+
+        for i in range(nx * ny):
+            pos = states[i, 0:2]
+            action = env.action_space[:, actions[i]]
+            dx = action[0] / d_x
+            dy = action[1] / d_y
+
+            if dx == 0 and dy == 0:
+                continue
+            arrow = plt.arrow(pos[0], pos[1], dx, dy, width=0.1)
+            ax.add_patch(arrow)
+
+    # Plot the environment
+    ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.5, facecolor='g', edgecolor='k'))
+
+    for obs in obstacles:
+        pos = obs.center
+        rad = obs.radius
+        circle = plt.Circle(pos, radius=rad, facecolor='r', edgecolor='k')
+        ax.add_patch(circle)
+
+    # Plot the trajectories
+    for traj in trajectories:
+        xs = traj[:, 0]
+        ys = traj[:, 1]
+        ax.plot(xs, ys, 'r-*')
+
+        # Initial points
+        x = traj[0, 0]
+        y = traj[0, 1]
+        ax.plot(x, y, 'g-*')
+
+    return fig
+
+def plot_values_from_network(net, env, show_env=False):
+    # Plot settings
+    obstacle_color = 'r'
+    grid = True
+
+    # Environment parameters
+    params = env.get_env_parameters()
+
+    # Plot environment
+    fig = plt.figure()
+    ax = fig.add_subplot(
+        111,
+        aspect='equal',
+        xlim=params['x_lims'],
+        ylim=params['y_lims']
+    )
+    if grid:
+        ax.grid()
+        ax.set_axisbelow(True)
+
+    # Extract the obstacles and goals from the trajectories
+    goal = env.goal
+    obstacles = env.obstacles
+    obs = np.array([o.center for o in obstacles]).reshape(-1, )
+
+    # Plot heatmap
+
+    # Generate grid for heatmap
+    n = 200
+    x = np.linspace(params['x_lims'][0], params['x_lims'][1], n)
+    y = np.linspace(params['y_lims'][0], params['y_lims'][1], n)
+
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+
+    states = np.zeros((n ** 2, params['state_size']), dtype=float)
+    for i in range(n):
+        for j in range(n):
+            pos = np.array([xx[i, j], yy[i, j]])
+            states[i * n + j] = env.gen_state(pos, goal, obs)
+
+    # Predict in batch form
+    preds = net(torch.Tensor(states)).detach().numpy()
+    q_vals = np.max(preds[:, :-1], axis=1)
+    q = np.zeros(xx.shape, dtype=float)
+    # num_actions = params['num_actions']
+    for i in range(n):
+        for j in range(n):
+            q[i, j] = q_vals[i * n + j]
+
+    # ax.imshow(actions, cmap='hsv', alpha=0.4)
+    c = ax.pcolormesh(xx, yy, q, cmap=plt.cm.get_cmap('jet'), alpha=1)
+    cbar = fig.colorbar(c, ax=ax)
+    # cbar.ax.set_ylabel('Actions')
+    # c.set_clim(-0.5, num_actions - 0.5)
+
+    if show_env:
+        # Plot the environment
+        ax.add_patch(plt.Circle(goal, radius=env.goal_radius, alpha=0.3, facecolor='g', edgecolor='k'))
+
+        for obs in obstacles:
+            pos = obs.center
+            rad = obs.radius
+            circle = plt.Circle(pos, radius=rad, facecolor='r', edgecolor='k', alpha=0.3)
+            ax.add_patch(circle)
+
+        # Plot the trajectories
+    # for traj in trajectories:
+    #     xs = traj[:, 0]
+    #     ys = traj[:, 1]
+    #     ax.plot(xs, ys, 'r-*')
+    #
+    #     # Initial points
+    #     x = traj[0, 0]
+    #     y = traj[0, 1]
+    #     ax.plot(x, y, 'g-*')
+
+    return fig
         
         
         
