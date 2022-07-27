@@ -456,7 +456,7 @@ class Environment:
         for obs in self.obstacles:
             dist = obs.radius - np.linalg.norm(pos - obs.center, 2)
             # reward += self.tanh(dist, delta, A_o)
-            reward += A_o * (1 + np.ranh(dist/delta))/2
+            reward += A_o * (1 + np.tanh(dist/delta))/2
 
         # Borders
         #A_b = self.A_b
