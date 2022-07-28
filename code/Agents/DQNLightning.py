@@ -15,7 +15,7 @@ from torch.utils.data.dataset import IterableDataset
 # import tensorflow as tf
 
 from .Memory import Memory
-from Utilities.plots import plot_vector_field, animate_vector_field
+from Utilities.plots import plot_vector_field, animate_vector_field, plot_values
 from Environments.Environment import Environment
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
@@ -490,11 +490,15 @@ class DQNLightning(LightningModule):
         self.evals_done += 1
         self.log("evals_done", self.evals_done)
 
-        # Plot values
+        # Plot results
         trajectory = outputs["trajectory"]
         fig = plot_vector_field(self.env_params, env=self.env, agent=self, trajectory=trajectory)
         tensorboard = self.logger.experiment
         tensorboard.add_figure("vector_field", fig, global_step=self.global_step)
+
+        fig2 = plot_values(self.env, self, show_env=True)
+        tensorboard.add_figure("values", fig2, global_step=self.global_step)
+
         return {"avg_test_reward": avg_reward}
 
     def configure_optimizers(self) -> List[Optimizer]:
