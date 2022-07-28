@@ -59,7 +59,7 @@ model = DQNLightning(env=env,
 
 # Best model checkpoint
 best_checkpoint = ModelCheckpoint(
-    save_top_k=1,
+    save_top_k=10,
     monitor="avg_test_reward",
     mode="max",
     # dirpath="models/",
@@ -69,7 +69,7 @@ best_checkpoint = ModelCheckpoint(
 
 # Last model checkpoint
 last_checkpoint = ModelCheckpoint(
-    save_top_k=1,
+    save_top_k=10,
     monitor="evals_done",
     mode="max",
     # dirpath="models/",
